@@ -20,7 +20,7 @@ class Instance {
      * @returns {Promise} A Promise to save a snapshot of the instance in the database
      * @private
      */
-    _saveInstancePromise() {
+    _saveInstance() {
         return co(function*() {
             yield this.meta.model.snapshot.create({
                 instanceID: this.id,
@@ -44,7 +44,7 @@ class Instance {
             }
 
             if(!this.sc._isStepping){
-                this._saveInstancePromise().then();
+                this._saveInstance().then();
             }
         }.bind(this), SNAPSHOT_DELAY);
 
@@ -54,18 +54,60 @@ class Instance {
      * Starts the instance if it hasn't already started
      * @returns {Promise} A Promise that starts the instance
      */
-    startPromise() {
+    start() {
         return co(function*() {
             let instance = yield this.meta.model.instance.findById(this.id);
             //Find out if the instance has already started
             if(instance.dataValues.hasStarted) {
                 throw new Error("The instance has already started.");
             }
-            yield this._saveInstancePromise();  //Saves the first snapshot
+            yield this._saveInstance();  //Saves the first snapshot
             this.startSnapshotInterval();       //Start the snapshot service
             this.sc.start();                    //Start the statechart
             //Since it hasn't started yet mark it as started
             yield this.meta.model.instance.update({hasStarted: true}, {where: {id: this.id}});
+        }.bind(this));
+    }
+
+    /**
+     * Gets the instance statechart
+     * @returns {object} The statechart of this instance
+     */
+    getStateChart() {
+        return this.sc;
+    }
+
+    /**
+     * Gets the the instance ID
+     * @returns {Integer} The ID of the instance
+     */
+    getId() {
+        return this.id;
+    }
+
+    /**
+     * Checks if the instance has started
+     * @returns {Promise} A Promise to return true if the instance has started and false if it hasn't
+     */
+    hasStarted() {
+        return co(function*(){
+            let instance = yield this.meta.model.instance.findById(this.id);
+            return instance.dataValues.hasStarted;
+        }.bind(this));
+    }
+
+    /**
+     * Sends an event to the statechart
+     * @param eventName The name of the event
+     * @param data The data of the event
+     */
+    sendEvent(eventName, data) {
+        return co(function*(){
+            //Find out if the instance has already started
+            if(!(yield this.hasStarted())) {
+                throw new Error("The instance hasn't started yet.");
+            }
+            this.sc.gen(eventName, data)
         }.bind(this));
     }
 }

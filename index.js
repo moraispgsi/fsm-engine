@@ -150,7 +150,7 @@ module.exports = function (dialect, host, user, password, database) {
          * @returns {Promise} A Promise that creates an instance from a Finite-state machine versin and returns an instance
          * object
          */
-        function makeInstancePromise(versionID) {
+        function makeInstance(versionID) {
             return co(function*() {
                 let sc = yield _makeStateChart(versionID);
                 return yield _makeInstance(versionID, sc);
@@ -167,6 +167,25 @@ module.exports = function (dialect, host, user, password, database) {
                 throw new Error("Instance not found");
             }
             return instanceStore[id];
+        }
+
+        /**
+         * Send a global event to all the instances
+         * @param eventName The name of the event to send
+         * @param data The data to send
+         * @returns {Promise} A Promise to send the global event
+         */
+        function sendGlobalEvent(eventName, data) {
+            return co(function*(){
+                for (let property in instanceStore) {
+                    if (instanceStore.hasOwnProperty(property)) {
+                        let instance = instanceStore[property];
+                        if(yield instance.hasStarted()){
+                            yield instance.sendEvent(eventName, data);
+                        }
+                    }
+                }
+            });
         }
 
         //Returns a promise that will sync the database definition and return the module interface
@@ -203,10 +222,12 @@ module.exports = function (dialect, host, user, password, database) {
                 instanceStore[instance.id] = instance; //Store the instance in the instanceStore
             }
 
+
+
             //Return this module interface
             return {
                 meta: meta,
-                makeInstancePromise: makeInstancePromise,
+                makeInstance: makeInstance,
                 getInstance: getInstance
             }
         });
