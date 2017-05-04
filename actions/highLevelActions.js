@@ -3,6 +3,7 @@
  */
 
 let lowLevelActions = require('./lowLevelActions');
+let vm = require('vm');
 
 let $a = lowLevelActions.makeAction;
 let $t = $a.transition;
@@ -17,39 +18,33 @@ let $http = $a.httpRequest;
 let $log = $a.log;
 
 /*
-high lever actions come in this format
-{
-    name: [string],
+high lever actions arguments come in this format
     actionArguments: {
        argName1: value1,
        argName2: value2
     }
-}
  */
-module.exports = {
 
-    logme: function(context, data, actionArguments) {
-        let title = actionArguments.title;
-        let text = actionArguments.text;
-        return $log(title, text)(context, data);
-    },
-    setInstanceProperty: function(context, actionArguments) {
-        let prop = actionArguments.propertyName;
-        let val = actionArguments.value;
-        return $is(prop, val)(context, null);
-    },
-
-
-    // actions.timerLog = function(actionArguments) {
-    //     let delay = actionArguments.delay;
-    //     let timerID = actionArguments.timerID;
-    //     let title = actionArguments.title;
-    //     let text = actionArguments.text;
-    //     return $is(timerID, $a.timeout(delay, $a.log(title, text)));
-    // };
-    // actions.cancelTimer = function(actionArguments){
-    //     let timerID = actionArguments.timerID;
-    //     return $a.cancelTimeout($i(timerID))(this, this.data);
-    // }
-
+let actions = {};
+actions.logme = function(sandbox, data, actionArguments) {
+    let title = actionArguments.title;
+    let text = actionArguments.text;
+    return $log(title, text)(sandbox, data);
 };
+
+actions.changeView = function(sandbox, data, actionArguments) {
+
+    let id = actionArguments.id;
+    let view = actionArguments.view;
+
+    if(typeof id === 'string'){
+        id = vm.runInContext(id, sandbox);
+    }
+
+    return $http("host", "changeView", {
+        id: id,
+        view: view
+    })(sandbox, data);
+};
+
+module.exports = actions;

@@ -107,7 +107,9 @@ class Instance {
             if(!(yield this.hasStarted())) {
                 throw new Error("The instance hasn't started yet.");
             }
-            this.sc.gen(eventName, data)
+            data = data || {};
+            data.name = eventName;
+            this.sc.gen(data);
         }.bind(this));
     }
 }

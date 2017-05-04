@@ -2,7 +2,7 @@
  * Created by Ricardo Morais on 12/04/2017.
  */
 
-module.exports = function (dialect, host, user, password, database) {
+module.exports = function (dialect, host, user, password, database, config) {
 
     //Load dependencies
     let co = require('co');                                         //For a easier promise handling experience
@@ -14,7 +14,7 @@ module.exports = function (dialect, host, user, password, database) {
 
     return co(function*(){
 
-        let fsmCore = yield init(dialect, host, user, password, database);    //Initialize fsm-core
+        let fsmCore = yield init(dialect, host, user, password, database, config);    //Initialize fsm-core
         let SNAPSHOT_DELAY = 100;       //The delay
         let instanceStore = {};         //Storing the Finite-state machine instances in an object
         let tablePrefix = "FsmEngine";  //The prefix of every table in the database
@@ -102,6 +102,8 @@ module.exports = function (dialect, host, user, password, database) {
                      */
                     postMessage: function (message) {
                         let actionName = message.data["$type"];
+                        console.log("Custom action called: ", actionName);
+                        console.log(message.data)
                         let action = highLevelActions[actionName];
                         action(sandbox, message._event, message.data);
                     }
@@ -228,7 +230,8 @@ module.exports = function (dialect, host, user, password, database) {
             return {
                 meta: meta,
                 makeInstance: makeInstance,
-                getInstance: getInstance
+                getInstance: getInstance,
+                sendGlobalEvent: sendGlobalEvent
             }
         });
 
