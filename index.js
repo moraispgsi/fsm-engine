@@ -103,7 +103,6 @@ module.exports = function (dialect, host, user, password, database, config) {
                     postMessage: function (message) {
                         let actionName = message.data["$type"];
                         console.log("Custom action called: ", actionName);
-                        console.log(message.data)
                         let action = highLevelActions[actionName];
                         action(sandbox, message._event, message.data);
                     }

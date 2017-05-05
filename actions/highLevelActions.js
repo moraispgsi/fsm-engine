@@ -41,7 +41,7 @@ actions.changeView = function(sandbox, data, actionArguments) {
         id = vm.runInContext(id, sandbox);
     }
 
-    return $http("host", "changeView", {
+    return $http("10.0.0.220:5003", "changeView", {
         id: id,
         view: view
     })(sandbox, data);
