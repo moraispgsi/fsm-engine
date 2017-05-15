@@ -12,12 +12,17 @@ module.exports = function (dialect, host, user, password, database, config) {
     let Instance = require('./instance');
     let highLevelActions = require('./actions/highLevelActions');   //The high level actions
 
+
+
     return co(function*(){
 
         let fsmCore = yield init(dialect, host, user, password, database, config);    //Initialize fsm-core
         let SNAPSHOT_DELAY = 100;       //The delay
         let instanceStore = {};         //Storing the Finite-state machine instances in an object
         let tablePrefix = "FsmEngine";  //The prefix of every table in the database
+
+
+
 
         let meta = {};
         meta.sequelize = fsmCore.sequelize;
@@ -223,7 +228,21 @@ module.exports = function (dialect, host, user, password, database, config) {
                 instanceStore[instance.id] = instance; //Store the instance in the instanceStore
             }
 
+            setInterval(()=>{
+                sendGlobalEvent("100MsTick");
+            }, 100);
 
+            setInterval(()=>{
+                sendGlobalEvent("500MsTick");
+            }, 500);
+
+            setInterval(()=>{
+                sendGlobalEvent("1000MsTick");
+            }, 1000);
+
+            setInterval(()=>{
+                sendGlobalEvent("5000MsTick");
+            }, 5000);
 
             //Return this module interface
             return {
