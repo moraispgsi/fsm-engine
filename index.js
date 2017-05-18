@@ -4,15 +4,16 @@
 
 module.exports = function (dialect, host, user, password, database, config) {
 
+    //Load dependencies
+    let co = require('co');                                         //For a easier promise handling experience
+    let Sequelize = require('sequelize');                           //For a ORM for the database
+    let init = require('fsm-core');                                 //Get the fsm-core initializer function
+    let scxml = require('scxml');                                   //The scion library
+    let Instance = require('./instance');
+    let highLevelActions = require('./actions/highLevelActions');   //The high level actions
+
     return co(function*(){
 
-        //Load dependencies
-        let co = require('co');                                         //For a easier promise handling experience
-        let Sequelize = require('sequelize');                           //For a ORM for the database
-        let init = require('fsm-core');                                 //Get the fsm-core initializer function
-        let scxml = require('scxml');                                   //The scion library
-        let Instance = require('./instance');
-        let highLevelActions = require('./actions/highLevelActions');   //The high level actions
         let fsmCore = yield init(dialect, host, user, password, database, config);    //Initialize fsm-core
         let SNAPSHOT_DELAY = 100;       //The delay
         let instanceStore = {};         //Storing the Finite-state machine instances in an object
