@@ -4,20 +4,34 @@
 
 module.exports = function (dialect, host, user, password, database, config) {
 
-    //Load dependencies
-    let co = require('co');                                         //For a easier promise handling experience
-    let Sequelize = require('sequelize');                           //For a ORM for the database
-    let init = require('fsm-core');                                 //Get the fsm-core initializer function
-    let scxml = require('scxml');                                   //The scion library
-    let Instance = require('./instance');
-    let highLevelActions = require('./actions/highLevelActions');   //The high level actions
-
     return co(function*(){
 
+        //Load dependencies
+        let co = require('co');                                         //For a easier promise handling experience
+        let Sequelize = require('sequelize');                           //For a ORM for the database
+        let init = require('fsm-core');                                 //Get the fsm-core initializer function
+        let scxml = require('scxml');                                   //The scion library
+        let Instance = require('./instance');
+        let highLevelActions = require('./actions/highLevelActions');   //The high level actions
         let fsmCore = yield init(dialect, host, user, password, database, config);    //Initialize fsm-core
         let SNAPSHOT_DELAY = 100;       //The delay
         let instanceStore = {};         //Storing the Finite-state machine instances in an object
         let tablePrefix = "FsmEngine";  //The prefix of every table in the database
+
+        let serverConfig = {
+            simulateTime: false,
+            simulationCurrentDate: new Date()
+        };
+        //The server global data for the sandbox
+        let serverGlobal =  {
+            now: function(){
+                if(serverConfig.simulateTime) {
+                    return serverConfig.simulationCurrentDate
+                } else {
+                    return new Date();
+                }
+            }
+        };
 
         let meta = {};
         meta.sequelize = fsmCore.sequelize;
@@ -76,6 +90,7 @@ module.exports = function (dialect, host, user, password, database, config) {
                     if(fsm.dataValues.name == fsmName) {
                         filteredInstances.push(instance.dataValues.id);
                     }
+                    return filteredInstances;
                 }
             });
         };
@@ -96,6 +111,7 @@ module.exports = function (dialect, host, user, password, database, config) {
                         filteredInstances.push(instance.dataValues.id);
                     }
                 }
+                return filteredInstances;
             });
         };
 
@@ -130,6 +146,12 @@ module.exports = function (dialect, host, user, password, database, config) {
 
                 //Define the sandbox for the v8 virtual machine
                 let sandbox = {
+
+                    /**
+                     * The server global variables and functions
+                     */
+                    globals: serverGlobal,
+
                     /**
                      * The object that will hold the properties of the instance
                      */
@@ -283,7 +305,20 @@ module.exports = function (dialect, host, user, password, database, config) {
                 meta: meta,
                 makeInstance: makeInstance,
                 getInstance: getInstance,
-                sendGlobalEvent: sendGlobalEvent
+                sendGlobalEvent: sendGlobalEvent,
+                setCurrentSimulationDate(date) {
+                    if(!serverConfig.simulateTime) {
+                        throw new Error("The server is not currently simulating time");
+                    }
+                    serverConfig.simulationCurrentDate = date;
+                },
+                enableSimulationMode: function(date) {
+                    serverConfig.simulationCurrentDate = date;
+                    serverConfig.simulateTime = true;
+                },
+                disableSimulationMode: function() {
+                    serverConfig.simulateTime = false;
+                }
             }
         });
 
