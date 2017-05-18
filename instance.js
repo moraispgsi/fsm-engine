@@ -42,7 +42,10 @@ class Instance {
                 clearInterval(interval);
                 return;
             }
-
+            if(this.sc.isFinal()){
+                //todo - set final in database
+                return;
+            }
             if(!this.sc._isStepping){
                 this._saveInstance().then();
             }
@@ -64,6 +67,7 @@ class Instance {
             yield this._saveInstance();  //Saves the first snapshot
             this.startSnapshotInterval();       //Start the snapshot service
             this.sc.start();                    //Start the statechart
+
             //Since it hasn't started yet mark it as started
             yield this.meta.model.instance.update({hasStarted: true}, {where: {id: this.id}});
         }.bind(this));

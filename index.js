@@ -12,17 +12,12 @@ module.exports = function (dialect, host, user, password, database, config) {
     let Instance = require('./instance');
     let highLevelActions = require('./actions/highLevelActions');   //The high level actions
 
-
-
     return co(function*(){
 
         let fsmCore = yield init(dialect, host, user, password, database, config);    //Initialize fsm-core
         let SNAPSHOT_DELAY = 100;       //The delay
         let instanceStore = {};         //Storing the Finite-state machine instances in an object
         let tablePrefix = "FsmEngine";  //The prefix of every table in the database
-
-
-
 
         let meta = {};
         meta.sequelize = fsmCore.sequelize;
@@ -65,6 +60,44 @@ module.exports = function (dialect, host, user, password, database, config) {
             onDelete: 'CASCADE'
         });
 
+        /**
+         * Gets all the instances of a Finite-state machine by Finite-state machine name
+         * @param fsmName The name of the Finite-state machine
+         */
+        meta.query.getInstancesByFsmName = function(fsmName) {
+            return co(function*(){
+                let filteredInstances = [];
+                let instances = yield meta.model.instance.findAll();
+                for(let i = 0; i < instances.length; i++) {
+                    let instance = instances[i];
+                    let versionID = instance.dataValues.versionID;
+                    let version = yield meta.model.version.findById(versionID);
+                    let fsm = yield meta.model.fsm.findById(version.dataValues.fsmID);
+                    if(fsm.dataValues.name == fsmName) {
+                        filteredInstances.push(instance.dataValues.id);
+                    }
+                }
+            });
+        };
+
+        /**
+         * Gets all the instances of a Finite-state machine by Finite-state machine id
+         * @param fsmId The id of the Finite-state machine
+         */
+        meta.query.getInstancesByFsmId = function(fsmId) {
+            return co(function*(){
+                let filteredInstances = [];
+                let instances = yield meta.model.instance.findAll();
+                for(let i = 0; i < instances.length; i++) {
+                    let instance = instances[i];
+                    let versionID = instance.dataValues.versionID;
+                    let version = yield meta.model.version.findById(versionID);
+                    if(version.dataValues.fsmID == fsmId) {
+                        filteredInstances.push(instance.dataValues.id);
+                    }
+                }
+            });
+        };
 
         /**
          * Creates a SCION state chart with the versionID and optionally with a snapshot
@@ -228,6 +261,7 @@ module.exports = function (dialect, host, user, password, database, config) {
                 instanceStore[instance.id] = instance; //Store the instance in the instanceStore
             }
 
+            //Start the engine tick events
             setInterval(()=>{
                 sendGlobalEvent("100MsTick");
             }, 100);
