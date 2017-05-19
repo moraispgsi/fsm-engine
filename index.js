@@ -30,8 +30,7 @@ module.exports = function (dialect, host, user, password, database, config) {
         //Returns a promise that will sync the database definition and return the module interface
         return co(function*() {
 
-            let engine = yield require("./engine")(meta);  //Build the engine
-            yield startServer(engine);
+            let engine = yield require("./engine")(meta);  //Build and start the engine
 
             //Return this module interface
             return engine;
