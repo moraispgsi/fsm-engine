@@ -25,7 +25,7 @@ module.exports = function (dialect, host, user, password, database, config) {
         meta.utils = fsmCore.utils;     //Stores utility facilities
 
         require("./model")(Sequelize, meta);    //Build the engine model
-        require("./queries")(Sequelize, meta);  //Build the engine model queries
+        require("./queries")(meta);  //Build the engine model queries
         let engine = require("./engine")(meta);  //Build the engine
 
         //Returns a promise that will sync the database definition and return the module interface
