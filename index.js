@@ -26,11 +26,11 @@ module.exports = function (dialect, host, user, password, database, config) {
 
         require("./model")(Sequelize, meta);    //Build the engine model
         require("./queries")(meta);  //Build the engine model queries
-        let engine = require("./engine")(meta);  //Build the engine
 
         //Returns a promise that will sync the database definition and return the module interface
         return co(function*() {
 
+            let engine = yield require("./engine")(meta);  //Build the engine
             startServer(engine);
 
             //Return this module interface
