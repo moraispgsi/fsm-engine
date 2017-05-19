@@ -313,6 +313,12 @@ module.exports = function (dialect, host, user, password, database, config) {
                     }
                     serverConfig.simulationCurrentDate = date;
                 },
+                getCurrentSimulationDate() {
+                    if(!serverConfig.simulateTime) {
+                        throw new Error("The server is not currently simulating time");
+                    }
+                    return serverConfig.simulationCurrentDate;
+                },
                 enableSimulationMode: function(date) {
                     serverConfig.simulationCurrentDate = date;
                     serverConfig.simulateTime = true;
