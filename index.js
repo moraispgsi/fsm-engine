@@ -31,7 +31,7 @@ module.exports = function (dialect, host, user, password, database, config) {
         return co(function*() {
 
             let engine = yield require("./engine")(meta);  //Build the engine
-            startServer(engine);
+            yield startServer(engine);
 
             //Return this module interface
             return engine;

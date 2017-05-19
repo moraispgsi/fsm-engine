@@ -1,9 +1,11 @@
 
 module.exports = function start(engine){
+    let co = require('co');                                         //For a easier promise handling experience
+    let Instance = require('./instance');
     return co(function*(){
-        yield meta.sequelize.sync();  //Synchronize the database with the database model definition
+        yield engine.meta.sequelize.sync();  //Synchronize the database with the database model definition
         //Find all the instances that didn't end yet in order to restart their execution process
-        let instances = yield meta.model.instance.findAll({
+        let instances = yield engine.meta.model.instance.findAll({
             where: {
                 hasEnded: false
             }
@@ -13,7 +15,7 @@ module.exports = function start(engine){
         for (let instanceRow of instances) {
             let versionID = instanceRow.dataValues.versionID;   //Get the versionID
             //Find the latest Snapshot of the instance
-            let latestSnapshot = yield meta.model.snapshot.findOne({
+            let latestSnapshot = yield engine.meta.model.snapshot.findOne({
                 where: {
                     instanceID: instanceRow.dataValues.id
                 },
@@ -21,9 +23,7 @@ module.exports = function start(engine){
             });
 
             //The snapshot is parsed as JSON or is null if none was found
-            let snapshot = latestSnapshot ? JSON.parse(latestSnapshot.dataValues.snapshot) : null;
-            let sc = yield _makeStateChart(versionID, snapshot);        //Creates the StateChart using the snapshot
-            let instance = new Instance(meta, sc, instanceRow.dataValues.id); //Creates an instance object
+            let instance = yield engine.remakeInstance(versionID, snapshot, instanceRow.dataValues.id);
 
             //If the instance was already started we need to restart it now
             if(instanceRow.dataValues.hasStarted){

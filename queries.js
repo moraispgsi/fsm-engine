@@ -99,7 +99,7 @@ module.exports = function(meta){
             for(let key in Object.keys(config)) {
                 yield meta.model.configuration.create({
                     key: key,
-                    value: JSON.stringify(config[value])
+                    value: JSON.stringify(config[key])
                 });
             }
         });

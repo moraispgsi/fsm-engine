@@ -11,7 +11,7 @@ module.exports = function(meta){
     let Instance = require('./instance');
 
     return co(function*(){
-
+        yield meta.sequelize.sync();  //Synchronize the database with the database model definition
         //globals
         let instanceStore = {};         //Storing the Finite-state machine instances in an object
 
@@ -25,7 +25,7 @@ module.exports = function(meta){
             serverConfig.simulateTime = false;
             serverConfig.simulationCurrentDate = new Date();
             serverConfig.snapshotFrequency = 1000;
-            yield meta.query.set(serverConfig);
+            yield meta.query.setConfig(serverConfig);
         }
 
         //The server global data for the sandbox
@@ -147,6 +147,22 @@ module.exports = function(meta){
         }
 
         /**
+         * Recreates an instance using a snapshot
+         * @param versionID The Finite-state machine version to use as the model
+         * @param snapshot The instance snapshot
+         * @param instanceID The id of the instance in the DataBase
+         * @returns {Promise} A Promise that creates an instance from a Finite-state machine versin and returns an instance
+         * object
+         */
+        function remakeInstance(versionID, snapshot, instanceID) {
+            return co(function*() {
+                let sc = yield _makeStateChart(versionID, snapshot);        //Creates the StateChart using the snapshot
+                let instance = new Instance(meta, sc, instanceID); //Creates an instance object
+                return instance;
+            });
+        }
+
+        /**
          * Gets a instance object from its ID
          * @param id The id of the instance object
          * @returns {Instance} The instance with the specified ID
@@ -210,6 +226,7 @@ module.exports = function(meta){
         let engine = {
             meta: meta,
             makeInstance: makeInstance,
+            remakeInstance: remakeInstance,
             getInstance: getInstance,
             sendGlobalEvent: sendGlobalEvent,
             setCurrentSimulationDate: setCurrentSimulationDate,
