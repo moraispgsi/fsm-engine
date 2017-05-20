@@ -20,8 +20,8 @@ module.exports = function(meta){
                 if(fsm.dataValues.name == fsmName) {
                     filteredInstances.push(instance.dataValues.id);
                 }
-                return filteredInstances;
             }
+            return filteredInstances;
         });
     };
 
@@ -96,7 +96,7 @@ module.exports = function(meta){
     meta.query.setConfig = function(config) {
         return co(function*(){
             yield meta.model.configuration.destroy({where: {}});
-            for(let key in Object.keys(config)) {
+            for(let key of Object.keys(config)) {
                 yield meta.model.configuration.create({
                     key: key,
                     value: JSON.stringify(config[key])

@@ -8,11 +8,9 @@ module.exports = function (dialect, host, user, password, database, config) {
     let co = require('co');                                         //For a easier promise handling experience
     let Sequelize = require('sequelize');                           //For a ORM for the database
     let initCore = require('fsm-core');                             //Get the fsm-core initializer function
-    let startServer = require('./server-start');
 
     return co(function*(){
 
-        let SNAPSHOT_DELAY = 100;       //The delay
 
         let fsmCore = yield initCore(dialect, host, user, password, database, config);    //Initialize fsm-core
 

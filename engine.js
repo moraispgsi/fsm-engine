@@ -7,7 +7,7 @@ module.exports = function(meta){
     //Libraries
     let co = require('co');                                         //For a easier promise handling experience
     let scxml = require('scxml');                                   //The scion library
-    let highLevelActions = require('./actions/highLevelActions');   //The high level actions
+    let highLevelActions = require('./actions/actions');   //The high level actions
     let Instance = require('./instance');
 
     return co(function*(){
@@ -32,13 +32,12 @@ module.exports = function(meta){
         let serverGlobal =  {
             now: function(){
                 if(serverConfig.simulateTime) {
-                    return serverConfig.simulationCurrentDate
+                    return new Date(serverConfig.simulationCurrentDate);
                 } else {
                     return new Date();
                 }
             }
         };
-
 
         ////////////////////////////////////
         //INSTANCES
@@ -92,7 +91,7 @@ module.exports = function(meta){
                         let actionName = message.data["$type"];
                         console.log("Custom action called: ", actionName);
                         let action = highLevelActions[actionName];
-                        action(sandbox, message._event, message.data);
+                        action(sandbox, message._event, message.data).bind(this);
                     }
                 };
 
@@ -254,6 +253,7 @@ module.exports = function(meta){
 
             instanceStore[instance.id] = instance; //Store the instance in the instanceStore
         }
+
 
         //Start the engine tick events
         setInterval(()=>{
