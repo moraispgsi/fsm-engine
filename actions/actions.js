@@ -42,7 +42,7 @@ actions.changeView = function(sandbox, event, actionArguments) {
         method: "POST",
         json: true,
         body: data,
-    },  (error, response, body) => {
+    }, (error, response, body) => {
         if (error !== void 0) {
             if(errorEvent !== void 0) {
                 this.raise(errorEvent);
@@ -53,10 +53,6 @@ actions.changeView = function(sandbox, event, actionArguments) {
             this.raise(successEvent);
         }
     });
-    return $http("10.0.0.220:5003", "changeView", {
-        id: id,
-        view: view
-    })(sandbox, data);
 };
 
 module.exports = actions;
