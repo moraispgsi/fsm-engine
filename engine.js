@@ -190,7 +190,7 @@ module.exports = function(core){
                 throw new Error("The server is not currently simulating time");
             }
             serverConfig.simulationCurrentDate = date;
-            core.query.setConfig(serverConfig).then();
+            core.setConfig(serverConfig).then();
         }
 
         function getCurrentSimulationDate() {
@@ -203,13 +203,13 @@ module.exports = function(core){
         function enableSimulationMode(date) {
             serverConfig.simulationCurrentDate = date;
             serverConfig.simulateTime = true;
-            core.query.setConfig(serverConfig).then();
+            core.setConfig(serverConfig).then();
         }
 
         function disableSimulationMode() {
             serverConfig.simulateTime = false;
             serverConfig.simulationCurrentDate = null;
-            core.query.setConfig(serverConfig);
+            core.setConfig(serverConfig);
         }
 
         //////////////////////////////////////////////////

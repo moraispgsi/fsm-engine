@@ -68,7 +68,6 @@ module.exports = function(Sequelize, core){
             if(!filteredInstances) {
                 filteredInstances = [];
             }
-            filteredInstances = filteredInstances.map((instance)=>instance.dataValues);
             return filteredInstances;
         });
     };
@@ -92,7 +91,6 @@ module.exports = function(Sequelize, core){
             if(!filteredInstances) {
                 filteredInstances = [];
             }
-            filteredInstances = filteredInstances.map((instance)=>instance.dataValues);
             return filteredInstances;
         });
     };
