@@ -19,23 +19,22 @@ actions.changeView = function(sandbox, event, actionArguments) {
 
     let id = actionArguments.id;
     let view = actionArguments.view;
-    let exprId = actionArguments.expr;
-    let exprView = actionArguments.expr;
+    let exprId = actionArguments.exprId;
+    let exprView = actionArguments.exprView;
     let host = actionArguments.host;
-    let route = actionArguments.route;
+    let route = "/changeVisualization";
+    let exprHost = actionArguments.exprHost;
     let errorEvent = actionArguments.errorEvent;
     let successEvent = actionArguments.successEvent;
 
-    let data ={
+    id    = id    ? id    : vm.runInContext(exprId, sandbox);
+    view  = view  ? view  : vm.runInContext(exprView, sandbox);
+    host  = host  ? host  : vm.runInContext(exprHost, sandbox);
+
+    let data = {
         id: id,
         view: view
     };
-
-    if(id === void 0){
-        data.id = vm.runInContext(exprId, sandbox);
-    } else if (view === void 0){
-        data.view = vm.runInContext(exprView, sandbox);
-    }
 
     request({
         url: host + route,
@@ -43,13 +42,13 @@ actions.changeView = function(sandbox, event, actionArguments) {
         json: true,
         body: data,
     }, (error, response, body) => {
-        if (error !== void 0) {
-            if(errorEvent !== void 0) {
+        if (error) {
+            if(errorEvent) {
                 this.raise(errorEvent);
             }
             return;
         }
-        if(successEvent !== void 0) {
+        if(successEvent) {
             this.raise(successEvent);
         }
     });
