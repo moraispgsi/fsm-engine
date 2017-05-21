@@ -2,30 +2,30 @@
  * Created by Ricardo Morais on 19/05/2017.
  */
 
-module.exports = function(meta){
+module.exports = function(core){
 
     //Libraries
-    let co = require('co');                                         //For a easier promise handling experience
-    let scxml = require('scxml');                                   //The scion library
+    let co = require('co');                                //For a easier promise handling experience
+    let scxml = require('scxml');                          //The scion library
     let highLevelActions = require('./actions/actions');   //The high level actions
     let Instance = require('./instance');
 
     return co(function*(){
-        yield meta.sequelize.sync();  //Synchronize the database with the database model definition
-        //globals
-        let instanceStore = {};         //Storing the Finite-state machine instances in an object
+        yield core.sequelize.sync();  //Synchronize the database with the database model definition
+
+        let instanceStore = {};       //Storing the Finite-state machine instances in an object
 
         ////////////////////////////////////
         //CONFIGURATIONS
         ////////////////////////////////////
 
-        let serverConfig = yield meta.query.getConfig();
+        let serverConfig = yield core.getConfig();
         //If there isn't a configuration yet
         if(serverConfig.simulateTime === void 0) {
             serverConfig.simulateTime = false;
             serverConfig.simulationCurrentDate = new Date();
             serverConfig.snapshotFrequency = 1000;
-            yield meta.query.setConfig(serverConfig);
+            yield core.setConfig(serverConfig);
         }
 
         //The server global data for the sandbox
@@ -49,16 +49,16 @@ module.exports = function(meta){
          * @returns {Promise} A Promise to create a SCION statechart and return it
          * @private
          */
-        function _makeStateChart(versionID, snapshot) {
+        function _createStateChart(versionID, snapshot) {
             return co(function*() {
 
                 //Make sure the version is sealed
-                let isVersionSealed = yield meta.query.isVersionSealed(versionID);
+                let isVersionSealed = yield core.isVersionSealed(versionID);
                 if(!isVersionSealed){
                     throw new Error("The Finite-state machine version is not sealed");
                 }
 
-                let version = yield meta.model.version.findById(versionID); //Find the version with the versionID
+                let version = yield core.model.version.findById(versionID); //Find the version with the versionID
                 let scxmlDocumentString = version.dataValues.scxml;            //Get the SCXML document from the version
 
                 //Create the SCION model from the SCXML document
@@ -73,23 +73,13 @@ module.exports = function(meta){
 
                 //Define the sandbox for the v8 virtual machine
                 let sandbox = {
-
-                    /**
-                     * The server global variables and functions
-                     */
+                    //The server global variables and functions
                     globals: serverGlobal,
-
-                    /**
-                     * The object that will hold the properties of the instance
-                     */
+                    //The object that will hold the properties of the instance
                     properties: {},
-                    /**
-                     * The function that will process the custom actions
-                     * @param message
-                     */
+                    //The function that will process the custom actions
                     postMessage: function (message) {
                         let actionName = message.data["$type"];
-                        console.log("Custom action called: ", actionName);
                         let action = highLevelActions[actionName];
                         action(sandbox, message._event, message.data).bind(this);
                     }
@@ -120,13 +110,13 @@ module.exports = function(meta){
         function _makeInstance(versionID, sc) {
             return co(function*() {
                 //start the interpreter
-                let instanceRow = yield meta.model.instance.create({
+                let instanceRow = yield core.model.instance.create({
                     versionID: versionID,
                     hasStarted: false,
                     hasEnded: false
                 });
                 let instanceID = instanceRow.dataValues.id;
-                let instance = new Instance(meta, sc, instanceID);
+                let instance = new Instance(core, sc, instanceID);
                 instanceStore[instanceID] = instance;
                 return instance;
             })
@@ -138,9 +128,9 @@ module.exports = function(meta){
          * @returns {Promise} A Promise that creates an instance from a Finite-state machine versin and returns an instance
          * object
          */
-        function makeInstance(versionID) {
+        function createInstance(versionID) {
             return co(function*() {
-                let sc = yield _makeStateChart(versionID);
+                let sc = yield _createStateChart(versionID);
                 return yield _makeInstance(versionID, sc);
             });
         }
@@ -153,10 +143,10 @@ module.exports = function(meta){
          * @returns {Promise} A Promise that creates an instance from a Finite-state machine versin and returns an instance
          * object
          */
-        function remakeInstance(versionID, snapshot, instanceID) {
+        function reloadInstance(versionID, snapshot, instanceID) {
             return co(function*() {
-                let sc = yield _makeStateChart(versionID, snapshot);        //Creates the StateChart using the snapshot
-                let instance = new Instance(meta, sc, instanceID); //Creates an instance object
+                let sc = yield _createStateChart(versionID, snapshot);    //Creates the StateChart using the snapshot
+                let instance = new Instance(core, sc, instanceID);      //Creates an instance object
                 return instance;
             });
         }
@@ -200,7 +190,7 @@ module.exports = function(meta){
                 throw new Error("The server is not currently simulating time");
             }
             serverConfig.simulationCurrentDate = date;
-            meta.query.setConfig(serverConfig).then();
+            core.query.setConfig(serverConfig).then();
         }
 
         function getCurrentSimulationDate() {
@@ -213,19 +203,19 @@ module.exports = function(meta){
         function enableSimulationMode(date) {
             serverConfig.simulationCurrentDate = date;
             serverConfig.simulateTime = true;
-            meta.query.setConfig(serverConfig).then();
+            core.query.setConfig(serverConfig).then();
         }
 
         function disableSimulationMode() {
             serverConfig.simulateTime = false;
             serverConfig.simulationCurrentDate = null;
-            meta.query.setConfig(serverConfig);
+            core.query.setConfig(serverConfig);
         }
 
         //////////////////////////////////////////////////
         //ENGINE START
         //////////////////////////////////////////////////
-        let instances = yield meta.model.instance.findAll({
+        let instances = yield core.model.instance.findAll({
             where: {
                 hasEnded: false
             }
@@ -235,7 +225,7 @@ module.exports = function(meta){
         for (let instanceRow of instances) {
             let versionID = instanceRow.dataValues.versionID;   //Get the versionID
             //Find the latest Snapshot of the instance
-            let latestSnapshot = yield meta.model.snapshot.findOne({
+            let latestSnapshot = yield core.model.snapshot.findOne({
                 where: {
                     instanceID: instanceRow.dataValues.id
                 },
@@ -244,16 +234,11 @@ module.exports = function(meta){
 
             //The snapshot is parsed as JSON or is null if none was found
             let snapshot = latestSnapshot ? JSON.parse(latestSnapshot.dataValues.snapshot) : null;
-            let instance = yield remakeInstance(versionID, snapshot, instanceRow.dataValues.id);
-
-            //If the instance was already started we need to restart it now
-            if(instanceRow.dataValues.hasStarted){
-                instance.startSnapshotInterval();
-            }
+            let instance = yield reloadInstance(versionID, snapshot, instanceRow.dataValues.id);
+            instance.start();
 
             instanceStore[instance.id] = instance; //Store the instance in the instanceStore
         }
-
 
         //Start the engine tick events
         setInterval(()=>{
@@ -272,17 +257,15 @@ module.exports = function(meta){
             sendGlobalEvent("5000MsTick");
         }, 5000);
 
-        let engine = {
-            meta: meta,
-            makeInstance: makeInstance,
-            remakeInstance: remakeInstance,
-            getInstance: getInstance,
-            sendGlobalEvent: sendGlobalEvent,
-            setCurrentSimulationDate: setCurrentSimulationDate,
-            getCurrentSimulationDate: getCurrentSimulationDate,
-            enableSimulationMode: enableSimulationMode,
-            disableSimulationMode: disableSimulationMode
-        };
+        let engine = core;
+        engine.createInstance = createInstance;
+        // engine.reloadInstance = reloadInstance;
+        engine.getInstance = getInstance;
+        engine.sendGlobalEvent = sendGlobalEvent;
+        engine.setCurrentSimulationDate = setCurrentSimulationDate;
+        engine.getCurrentSimulationDate = getCurrentSimulationDate;
+        engine.enableSimulationMode = enableSimulationMode;
+        engine.disableSimulationMode = disableSimulationMode;
         return engine;
 
     });
