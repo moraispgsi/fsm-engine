@@ -15,6 +15,7 @@ high lever actions arguments come in this format
 
 let actions = {};
 
+
 actions.changeView = function(sandbox, event, actionArguments) {
 
     let id = actionArguments.id;

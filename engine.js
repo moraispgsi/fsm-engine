@@ -215,11 +215,12 @@ module.exports = function(core){
         //////////////////////////////////////////////////
         //ENGINE START
         //////////////////////////////////////////////////
-        let instances = yield core.model.instance.findAll({
-            where: {
-                hasEnded: false
-            }
-        });
+        // let instances = yield core.model.instance.findAll({
+        //     where: {
+        //         hasEnded: false
+        //     }
+        // });
+        let instances = yield core.model.instance.findAll();
 
         //Iterating over the instances in order to restart them
         for (let instanceRow of instances) {
