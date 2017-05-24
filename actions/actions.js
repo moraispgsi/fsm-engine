@@ -13,29 +13,27 @@ high lever actions arguments come in this format
     }
 */
 
-let actions = {};
-
-
-actions.changeView = function(sandbox, event, actionArguments) {
-
-    let id = actionArguments.id;
-    let view = actionArguments.view;
-    let exprId = actionArguments.exprId;
-    let exprView = actionArguments.exprView;
-    let host = actionArguments.host;
-    let route = "/changeVisualization";
-    let exprHost = actionArguments.exprHost;
-    let errorEvent = actionArguments.errorEvent;
-    let successEvent = actionArguments.successEvent;
-
-    id    = id    ? id    : vm.runInContext(exprId, sandbox);
-    view  = view  ? view  : vm.runInContext(exprView, sandbox);
-    host  = host  ? host  : vm.runInContext(exprHost, sandbox);
+let execute = function(action, sandbox, event, actionArguments) {
 
     let data = {
-        id: id,
-        view: view
+        action: action,
+        arguments: {}
     };
+
+    for(let key of Object.keys(actionArguments)) {
+        if(key.startsWith("expr")) {
+            let newKey = actionArguments.key.substring("expr".length);
+            newKey = Character.toLowerCase(newKey[0])+newKey.substring(1);
+            data.arguments[newKey] = vm.runInContext(actionArguments[key], sandbox);
+        } else {
+            data.arguments[key] = actionArguments[key];
+        }
+    }
+
+    let host = actionArguments.host;
+    let route = "/execute";
+    let errorEvent = actionArguments.errorEvent;
+    let successEvent = actionArguments.successEvent;
 
     request({
         url: host + route,
@@ -55,4 +53,4 @@ actions.changeView = function(sandbox, event, actionArguments) {
     });
 };
 
-module.exports = actions;
+module.exports = execute;

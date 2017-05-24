@@ -7,7 +7,7 @@ module.exports = function(core){
     //Libraries
     let co = require('co');                                //For a easier promise handling experience
     let scxml = require('scxml');                          //The scion library
-    let highLevelActions = require('./actions/actions');   //The high level actions
+    let execute = require('./actions/actions');   //The high level actions
     let Instance = require('./instance');
 
     return co(function*(){
@@ -80,8 +80,7 @@ module.exports = function(core){
                     //The function that will process the custom actions
                     postMessage: function (message) {
                         let actionName = message.data["$type"];
-                        let action = highLevelActions[actionName];
-                        action(sandbox, message._event, message.data).bind(this);
+                        execute(sandbox, message._event, message.data).bind(this);
                     }
                 };
 
