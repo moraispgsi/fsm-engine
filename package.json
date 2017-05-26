@@ -11,6 +11,6 @@
   "dependencies": {
     "fsm-core": "git@github.com:moraispgsi/fsm-core.git#52727368a1850a1827b9009f5aab0e2e6c50dd95",
     "request": "^2.81.0",
-    "scxml": "git@github.com:moraispgsi/SCION.git"
+    "scxml": "git@github.com:moraispgsi/SCION.git#f34a99438b0ecca56447594699b3227ef3dc231a"
   }
 }
