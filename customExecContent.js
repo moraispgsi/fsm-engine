@@ -17,9 +17,7 @@ module.exports = function(actionDispatcherHost){
     let execute = function(namespace, action, sandbox, event, actionArguments) {
 
         try {
-
             let data = {
-                stripNsPrefixRe: /^(?:{(?:[^}]*)})?(.*)$/,
                 namespace: namespace,
                 action: action,
                 arguments: {}

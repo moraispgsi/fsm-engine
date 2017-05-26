@@ -7,7 +7,7 @@ module.exports = function(core, actionDispatcherHost){
     //Libraries
     let co = require('co');                                    //For a easier promise handling experience
     let scxml = require('scxml');                              //The scion library
-    let execute = require('./actions/actions')(actionDispatcherHost);   //The high level actions
+    let execute = require('./customExecContent')(actionDispatcherHost);   //The high level actions
     let Instance = require('./instance');
 
     return co(function*(){
