@@ -1,7 +1,7 @@
 /**
  * Created by Ricardo Morais on 28/03/2017.
  */
-module.exports = function(actionsHost){
+module.exports = function(actionDispatcherHost){
 
     let vm = require('vm');
     let request = require('request');
@@ -37,7 +37,7 @@ module.exports = function(actionsHost){
                 }
             }
 
-            let host = actionsHost;
+            let host = actionDispatcherHost;
             let route = "/execute";
             let errorEvent = actionArguments.errorEvent;
             let successEvent = actionArguments.successEvent;
