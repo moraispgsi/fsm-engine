@@ -2,12 +2,12 @@
  * Created by Ricardo Morais on 19/05/2017.
  */
 
-module.exports = function(core, actionDispatcherHost){
+module.exports = function(core, actionsHost){
 
     //Libraries
     let co = require('co');                                    //For a easier promise handling experience
     let scxml = require('scxml');                              //The scion library
-    let execute = require('./actions/actions')(actionDispatcherHost);   //The high level actions
+    let execute = require('./actions/actions')(actionsHost);   //The high level actions
     let Instance = require('./instance');
 
     return co(function*(){
