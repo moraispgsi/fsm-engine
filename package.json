@@ -9,7 +9,7 @@
   "author": "Ricardo José Horta Morais",
   "license": "ISC",
   "dependencies": {
-    "fsm-core": "https://github.com/moraispgsi/fsm-core.git",
+    "fsm-core": "https://github.com/moraispgsi/fsm-core.git#748020bac519d99ff0cd93ad260e6ee00a81c0d6",
     "request": "^2.81.0",
     "scxml": "https://github.com/moraispgsi/SCION.git#f34a99438b0ecca56447594699b3227ef3dc231a"
   }
