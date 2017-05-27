@@ -498,11 +498,18 @@
       <option name="project" value="LOCAL" />
       <updated>1495854919318</updated>
     </task>
-    <option name="localTasksCounter" value="24" />
+    <task id="LOCAL-00024" summary="update fsm-core version">
+      <created>1495914448762</created>
+      <option name="number" value="00024" />
+      <option name="presentableId" value="LOCAL-00024" />
+      <option name="project" value="LOCAL" />
+      <updated>1495914448762</updated>
+    </task>
+    <option name="localTasksCounter" value="25" />
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="105339000" />
+    <option name="totallyTimeSpent" value="105974000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="-7" y="0" width="1370" height="735" extended-state="0" />
@@ -570,7 +577,8 @@
     <MESSAGE value="travis.yml" />
     <MESSAGE value="package.json" />
     <MESSAGE value="version instances" />
-    <option name="LAST_COMMIT_MESSAGE" value="version instances" />
+    <MESSAGE value="update fsm-core version" />
+    <option name="LAST_COMMIT_MESSAGE" value="update fsm-core version" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager />
