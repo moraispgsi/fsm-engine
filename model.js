@@ -72,6 +72,15 @@ module.exports = function(Sequelize, core){
         });
     };
 
+    core.getInstancesByVersionId = function(versionID) {
+        return co(function*(){
+            let instances = yield core.model.instance.findAll({
+                versionID: versionID
+            });
+            return instances ? instances : [];
+        });
+    };
+
     /**
      * Gets all the instances of a Finite-state machine by Finite-state machine id
      * @param fsmId The id of the Finite-state machine
