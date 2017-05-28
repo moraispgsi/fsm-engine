@@ -105,6 +105,18 @@ module.exports = function(Sequelize, core){
     };
 
     /**
+     * Gets an instance by its id
+     * @param instanceId the id of the instance
+     * @returns {*} A promise to return the instance
+     */
+    core.getInstanceById = function(instanceId) {
+        return co(function*(){
+            let instance = yield core.model.instance.findById();
+            return instance.dataValues;
+        });
+    };
+
+    /**
      * Gets the server configuration from the database
      */
     core.getConfig = function() {
