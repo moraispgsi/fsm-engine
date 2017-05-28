@@ -111,7 +111,7 @@ module.exports = function(Sequelize, core){
      */
     core.getInstanceById = function(instanceId) {
         return co(function*(){
-            let instance = yield core.model.instance.findById();
+            let instance = yield core.model.instance.findById(instanceId);
             return instance.dataValues;
         });
     };
