@@ -120,7 +120,7 @@ module.exports = function(Sequelize, core){
                 instances = [];
             }
             instances = instances.map((instance)=> {
-                return instance.datValues;
+                return instance.dataValues;
             });
             return instances;
         });
