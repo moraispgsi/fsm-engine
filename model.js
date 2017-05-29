@@ -72,6 +72,11 @@ module.exports = function(Sequelize, core){
         });
     };
 
+    /**
+     * Gets all the instances of a finite-state machine version
+     * @param versionID the id of the finite-state machine version
+     * @returns {*} A Promise to return all the instances of a finite-state machine version
+     */
     core.getInstancesByVersionId = function(versionID) {
         return co(function*(){
             let instances = yield core.model.instance.findAll({
@@ -110,7 +115,7 @@ module.exports = function(Sequelize, core){
      */
     core.getAllInstances = function() {
         return co(function*(){
-            let instances = yield core.model.instance.findById(instanceId);
+            let instances = yield core.model.instance.findAll();
             if(!instances) {
                 instances = [];
             }
