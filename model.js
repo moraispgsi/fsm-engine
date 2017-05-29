@@ -105,9 +105,25 @@ module.exports = function(Sequelize, core){
     };
 
     /**
+     * Gets all existing instances
+     * @returns {*} A Promise to return all the existing instances
+     */
+    core.getAllInstances = function() {
+        return co(function*(){
+            let instances = yield core.model.instance.findById(instanceId);
+            if(!instances) {
+                instances = [];
+            }
+            instances = instances.map((instance)=> {
+                return instance.datValues;
+            });
+            return instances;
+        });
+    };
+    /**
      * Gets an instance by its id
      * @param instanceId the id of the instance
-     * @returns {*} A promise to return the instance
+     * @returns {*} A promise to return the
      */
     core.getInstanceById = function(instanceId) {
         return co(function*(){

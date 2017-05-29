@@ -2,6 +2,7 @@
  ☐ Set an instance to a specific state. Using a snapshot;
  ☐ Start instance with initializing values
  ☐ Revert an instance to a specific snapshot (find out how to delete a StateChart in Scion-core)
+ ☐ Create the github readme
  ☐ Create the github wiki
- ☐ Create an action server separated from the normal
+ ✔ Create an action server separated from the normal @done (17-05-28 23:39)
  ✔ On every change, mark the instance to be snapshoted in the next iteration @done (17-05-21 04:22)
