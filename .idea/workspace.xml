@@ -51,7 +51,7 @@
       <file leaf-file-name="engine.js" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/engine.js">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="4658">
+            <state relative-caret-position="387">
               <caret line="276" column="51" lean-forward="false" selection-start-line="276" selection-start-column="51" selection-end-line="276" selection-end-column="51" />
               <folding>
                 <element signature="e#0#51#0" expanded="false" />
@@ -319,7 +319,7 @@
       <workItem from="1495328009453" duration="17742000" />
       <workItem from="1495729139984" duration="4372000" />
       <workItem from="1496244233011" duration="1940000" />
-      <workItem from="1496354466010" duration="66000" />
+      <workItem from="1496354466010" duration="1295000" />
     </task>
     <task id="LOCAL-00001" summary="Example 3 working">
       <created>1493056813090</created>
@@ -538,14 +538,22 @@
       <option name="project" value="LOCAL" />
       <updated>1496084921213</updated>
     </task>
-    <option name="localTasksCounter" value="32" />
+    <task id="LOCAL-00032" summary="fsm-core update">
+      <created>1496354551552</created>
+      <option name="number" value="00032" />
+      <option name="presentableId" value="LOCAL-00032" />
+      <option name="project" value="LOCAL" />
+      <updated>1496354551552</updated>
+    </task>
+    <option name="localTasksCounter" value="33" />
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="116759000" />
+    <option name="totallyTimeSpent" value="117988000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="-7" y="0" width="1370" height="735" extended-state="0" />
+    <editor active="true" />
     <layout>
       <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.18093093" sideWeight="0.5587302" order="0" side_tool="false" content_ui="combo" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
@@ -553,7 +561,7 @@
       <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
       <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Structure" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
-      <window_info id="Terminal" active="true" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.22569445" sideWeight="0.4940476" order="7" side_tool="false" content_ui="tabs" />
+      <window_info id="Terminal" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.22569445" sideWeight="0.4940476" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
       <window_info id="Favorites" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.18093093" sideWeight="0.44126984" order="2" side_tool="true" content_ui="tabs" />
       <window_info id="Cvs" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
@@ -613,7 +621,8 @@
     <MESSAGE value="getInstanceById" />
     <MESSAGE value="getAllInstances" />
     <MESSAGE value="quick fix" />
-    <option name="LAST_COMMIT_MESSAGE" value="quick fix" />
+    <MESSAGE value="fsm-core update" />
+    <option name="LAST_COMMIT_MESSAGE" value="fsm-core update" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager />
@@ -734,16 +743,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/engine.js">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="4658">
-          <caret line="276" column="51" lean-forward="false" selection-start-line="276" selection-start-column="51" selection-end-line="276" selection-end-column="51" />
-          <folding>
-            <element signature="e#0#51#0" expanded="false" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/model.js">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="2074">
@@ -759,6 +758,16 @@
         <state relative-caret-position="204">
           <caret line="12" column="35" lean-forward="false" selection-start-line="12" selection-start-column="35" selection-end-line="12" selection-end-column="35" />
           <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/engine.js">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="387">
+          <caret line="276" column="51" lean-forward="false" selection-start-line="276" selection-start-column="51" selection-end-line="276" selection-end-column="51" />
+          <folding>
+            <element signature="e#0#51#0" expanded="false" />
+          </folding>
         </state>
       </provider>
     </entry>
