@@ -319,7 +319,7 @@
       <workItem from="1495328009453" duration="17742000" />
       <workItem from="1495729139984" duration="4372000" />
       <workItem from="1496244233011" duration="1940000" />
-      <workItem from="1496354466010" duration="2892000" />
+      <workItem from="1496354466010" duration="3535000" />
     </task>
     <task id="LOCAL-00001" summary="Example 3 working">
       <created>1493056813090</created>
@@ -552,11 +552,18 @@
       <option name="project" value="LOCAL" />
       <updated>1496355768297</updated>
     </task>
-    <option name="localTasksCounter" value="34" />
+    <task id="LOCAL-00034" summary="fsm-core update">
+      <created>1496357926968</created>
+      <option name="number" value="00034" />
+      <option name="presentableId" value="LOCAL-00034" />
+      <option name="project" value="LOCAL" />
+      <updated>1496357926968</updated>
+    </task>
+    <option name="localTasksCounter" value="35" />
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="119585000" />
+    <option name="totallyTimeSpent" value="120228000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="-7" y="0" width="1370" height="735" extended-state="0" />
