@@ -252,23 +252,6 @@ module.exports = function(core, actionDispatcherHost){
             instanceStore[instance.id] = instance; //Store the instance in the instanceStore
         }
 
-        //Start the engine tick events
-        setInterval(()=>{
-            sendGlobalEvent("100MsTick");
-        }, 100);
-
-        setInterval(()=>{
-            sendGlobalEvent("500MsTick");
-        }, 500);
-
-        setInterval(()=>{
-            sendGlobalEvent("1000MsTick");
-        }, 1000);
-
-        setInterval(()=>{
-            sendGlobalEvent("5000MsTick");
-        }, 5000);
-
         let engine = core;
         engine.createInstance = createInstance;
         // engine.reloadInstance = reloadInstance;

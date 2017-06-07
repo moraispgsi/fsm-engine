@@ -5,6 +5,7 @@ module.exports = function(actionDispatcherHost){
 
     let vm = require('vm');
     let request = require('request');
+    let engineActions = require("./engineActions");
 
     /**
      * Executes a custom action on an actions server host by calling its REST API /execute method
@@ -24,7 +25,7 @@ module.exports = function(actionDispatcherHost){
             };
 
             for (let key of Object.keys(actionArguments)) {
-                if(key[0] != '$'){
+                if(key[0] !== '$'){
                     if (key.startsWith("expr")) {
                         let newKey = key.substring("expr".length);
                         newKey = newKey[0].toLowerCase() + newKey.substring(1);
@@ -33,6 +34,11 @@ module.exports = function(actionDispatcherHost){
                         data.arguments[key] = actionArguments[key];
                     }
                 }
+            }
+
+            if(namespace === "www.INSTICC.org/fsm-engine") {
+                engineExecute(action, data.arguments, sandbox, event);
+                return;
             }
 
             let host = actionDispatcherHost;
@@ -61,6 +67,17 @@ module.exports = function(actionDispatcherHost){
             console.log(err);
         }
     };
+
+    function engineExecute(action, arguments, sandbox, event){
+        switch(action){
+            case "schedule":
+                engineActions.schedule(arguments, sandbox, event);
+                break;
+            case "unschedule":
+                engineActions.unschedule(arguments, sandbox, event);
+                break;
+        }
+    }
 
     return execute;
 

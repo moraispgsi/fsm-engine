@@ -6,10 +6,89 @@ let init = require("../index");
 
 co(function*(){
     let engine = yield init('mysql', 'localhost', 'root', 'root', 'mydatabase', {logging: false});
+
+    // let data = yield engine.createFSM("deadline");
+    // let version = data.version;
+    let version;
+    let scxml = `<scxml xmlns="http://www.w3.org/2005/07/scxml" version="1.0" datamodel="ecmascript"
+    xmlns:ddm="https://insticc.org/DDM"
+    xmlns:engine="https://INSTICC.org/fsm-engine"
+    initial="uninitialized">
+    <datamodel>
+        <data id="date"          expr="null"/>
+        <data id="hasExtension"  expr="false"/>
+        <data id="extensionDate" expr="null"/>
+        <data id="deadlineId"    expr="-1"/>
+        <data id="hideDate"      expr="null"/>
+        <data id="sevenDays"     expr="1000 * 60 * 60 * 24 * 7"/>
+    </datamodel>
+        <state id="uninitialized">
+            <transition event="init" target="idle">
+                <assign location="date" expr="new Date(_event.date)"/>
+                <assign location="deadlineId" expr="_event.deadlineId"/>
+            </transition>
+        </state>
+        <state id="idle">
+            <onentry>
+                <ddm:updateDeadline exprId="deadlineId" state="" />
+                <assign location="hideDate" expr="new Date(date.getTime() + sevenDays)"/>
+                <engine:schedule event="expired" exprDate="date" job="dateJob"/>
+            </onentry>
+           <!-- if an extension event is receive, save the extension date -->
+           <transition event="extension">
+               <assign location="extensionDate" expr="new Date(_event.extensionDate)"/> 
+               <assign location="hasExtension" expr="true"/> 
+           </transition>
+           <!-- if the deadline receives the event cancel it goes to the state canceled -->
+           <transition event="cancel" target="canceled">
+              <engine:unschedule job="dateJob"/>
+           </transition>
+           <!-- if the the date expires and there isn't an extension date go to expired -->
+           <transition event="expired" cond="!hasExtension" target="expired"/>
+           <!-- if the the date expires and there is an extension date go to extended -->
+           <transition event="expired" cond="hasExtension" target="extended"/>
+       </state>
+     <state id="extended">
+        <onentry>
+            <ddm:updateDeadline exprId="deadlineId" state="extended" />
+            <assign location="hideDate" expr="new Date(extendedDate.getTime() + sevenDays)"/>
+            <engine:schedule event="extensionExpired" exprDate="extensionDate" job="extensionJob"/>
+        </onentry>
+        <transition event="extensionExpired" target="expired"/>
+    </state>
+    <state id="expired">
+        <onentry>
+            <ddm:updateDeadline exprId="deadlineId" state="expired" />
+            <engine:schedule event="hide" exprDate="hideDate" job="hideJob"/>
+        </onentry>
+        <transition event="hide" target="final"/>
+    </state>
+    <state id="canceled">
+        <onentry>
+            <ddm:updateDeadline exprId="deadlineId" state="canceled" />
+            <assign location="hideDate" expr="new Date(new Date().getTime() + 1000 * 60 * 60 * 24 * 7)"/>
+            <engine:schedule event="hide" exprDate="hideDate" job="hideJob"/>
+        </onentry>
+        <transition event="hide" target="final"/>
+    </state>
+<final id="final">
+    <onentry>
+            <ddm:deleteDeadline exprId="deadlineId" />
+    </onentry>
+</final>
+</scxml>`;
+    // yield engine.setScxml(version.id, scxml);
+    // yield engine.seal(version.id);
+
     let fsm = yield engine.getFsmByName("deadline");
-    let version = yield engine.getLatestSealedFsmVersion(fsm.id);
-    let instance = yield engine.createInstance(version.id);
-    yield instance.start();
-    let date = new Date(new Date().getTime() + 1000 * 10);
-    yield instance.sendEvent('init', {date: date, deadlineId: 1, now: new Date()});
+    version = yield engine.getLatestSealedFsmVersion(fsm.id);
+    console.log("Start Creation");
+    for(let i = 0;i<2000;i++){
+        let instance = yield engine.createInstance(version.id);
+        yield instance.start();
+        let date = new Date(new Date().getTime() + 1000 * 10);
+        yield instance.sendEvent('init', {date: date, deadlineId: 1, now: new Date()});
+        console.log("one more", instance.id);
+    }
+    console.log("Done");
 }).catch((err)=> console.log(err));

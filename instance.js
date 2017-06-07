@@ -3,7 +3,7 @@
  */
 
 let co = require('co');
-let SNAPSHOT_DELAY = 100000000;       //The delay
+const SNAPSHOT_DELAY = 1000 * 45;       //The delay
 /**
  * The instance class
  */
@@ -53,8 +53,8 @@ class Instance {
     start() {
         return co(function*() {
             yield this._saveInstance();  //Saves the first snapshot
-            this.sc.on("onSmallStepBegin", ()=>{this.stepped = true});
-            this.sc.on("onSmallStepEnd", ()=>{this.stepped = true});
+            //Mark has changed
+            this.sc.on("onTransition", ()=>{this.hasChanged = true});
             this.sc.start();                    //Start the statechart
             this.interval = setInterval(function(){
                 if(this.sc === null) {
@@ -67,11 +67,11 @@ class Instance {
                     }, {where:{id:this.id}}).then();
                     return;
                 }
-                if(!this.sc._isStepping && this.stepped){
+                if(!this.sc._isStepping && this.hasChanged){
                     this._saveInstance().then();
-                    this.stepped = false;
+                    this.hasChanged = false;
                 }
-            }.bind(this), 1000);
+            }.bind(this), SNAPSHOT_DELAY);
 
             //Since it hasn't started yet mark it as started
             yield this.core.model.instance.update({hasStarted: true}, {where: {id: this.id}});
