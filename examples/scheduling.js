@@ -34,7 +34,7 @@ co(function*(){
     </datamodel>
         <state id="uninitialized">
             <transition event="init" target="idle">
-                <assign location="date" expr="new Date(new Date().getTime() + 1000 * 60)"/>
+                <assign location="date" expr="new Date(new Date().getTime() + 1000 * 10)"/>
                 <assign location="deadlineId" expr="_event.deadlineId"/>
             </transition>
         </state>
@@ -43,7 +43,6 @@ co(function*(){
                 <ddm:updateDeadline exprId="deadlineId" state="" />
                 <assign location="hideDate" expr="new Date(new Date().getTime() + 1000 * 60 * 2)"/>
                 <engine:schedule event="expired" exprDate="date" job="dateJob"/>
-                <test:test exprId="deadlineId" exprDate="date" />
             </onentry>
            <!-- if an extension event is receive, save the extension date -->
            <transition event="extension">
@@ -97,7 +96,8 @@ co(function*(){
     let instance = yield engine.createInstance(version.id);
     yield instance.start();
     let date = new Date(new Date().getTime() + 1000 * 10);
+    instance.sc.on("onTransition", (state)=>{console.log(state);});
     yield instance.sendEvent('init', {date: date, deadlineId: 1, now: new Date()});
     console.log("one more", instance.id);
-    console.log("Done");
+
 }).catch((err)=> console.log(err));

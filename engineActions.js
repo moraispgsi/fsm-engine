@@ -5,6 +5,7 @@
 
 let debug = require("debug")("engine-actions");
 let vm = require('vm');
+let scheduleLib = require('node-schedule');
 
 let jobs = {};
 
@@ -15,20 +16,23 @@ let jobs = {};
  * @param sandbox
  * @param event
  */
-function schedule(arguments, sandbox, event) {
+function schedule(arguments, sandbox, eventContext) {
     debug("Action schedule");
-    let schedule = require('node-schedule');
     if(!arguments.event) {
         debug("Missing the event argument, not executed");
         return;
     }
+    let event = arguments.event;
+    let date = arguments.date;
+    let jobIdentifier = arguments.job;
 
-    let job = schedule.scheduleJob(arguments.date, function(){
-        debug("Fired on scheduled date");
-        if(arguments.job) {
-            delete jobs[arguments.job];
+    let job = scheduleLib.scheduleJob(date, function(){
+        debug("Fired '%s' event on scheduled date '%s'", event, date);
+        console.log(event);
+        if(jobIdentifier) {
+            delete jobs[jobIdentifier];
         }
-        this.raise(arguments.event);
+        this.raise(event);
 
     }.bind(this));
 
@@ -44,7 +48,7 @@ function schedule(arguments, sandbox, event) {
  * @param sandbox
  * @param event
  */
-function unschedule(arguments, sandbox, event) {
+function unschedule(arguments, sandbox, eventContext) {
     debug("Action unschedule");
     if(!arguments.job){
         debug("Missing the job argument, not executed");
