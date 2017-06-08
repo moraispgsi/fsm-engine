@@ -36,7 +36,7 @@ module.exports = function(actionDispatcherHost){
                 }
             }
 
-            if(namespace === "https://INSTICC.org/fsm-engine") {
+            if(namespace.toLowerCase() === "https://insticc.org/fsm-engine") {
                 engineExecute.call(this, action, data.arguments, sandbox, event);
                 return;
             }

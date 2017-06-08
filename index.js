@@ -19,16 +19,21 @@ module.exports = function (dialect, host, user, password, database, config, acti
     let co = require('co');               //For a easier promise handling experience
     let Sequelize = require('sequelize'); //For a ORM for the database
     let initCore = require('fsm-core');   //Get the fsm-core initializer function
+    let debug = require("debug")("engine");
 
     return co(function*(){
 
+        debug("Starting the core");
         let core = yield initCore(dialect, host, user, password, database, config);    //Initialize fsm-core
         core.moduleName = "fsm-engine"; //The name of the module
 
+        debug("Core was initialized");
+        debug("Constructing database model");
         require("./model")(Sequelize, core); //Build the engine model
 
         //Returns a promise that will sync the database definition and return the module interface
         return co(function*() {
+            debug("Starting the engine");
             let engine = yield require("./engine")(core, actionDispatcherHost);  //Build and start the engine
             return engine; //Return this module interface
         });

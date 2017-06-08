@@ -3,9 +3,13 @@
  */
 
 module.exports = function(Sequelize, core){
+    let debug = require("debug")("engine model");
 
     let co = require('co');
     let tablePrefix = "FsmEngine";  //The prefix of every table in the database
+
+
+    debug("Constructing the instance model definition");
     //The instance table that holds all the Finite-state machine instances
     core.model.instance = core.sequelize.define(tablePrefix + 'Instance', {
         versionID: {type: Sequelize.INTEGER, allowNull: false},
@@ -16,6 +20,7 @@ module.exports = function(Sequelize, core){
         underscoredAll: false
     });
 
+    debug("Constructing the snapshot model definition");
     //The instance snapshot table holds the snapshots taken from the instance
     core.model.snapshot = core.sequelize.define(tablePrefix + 'Snapshot', {
         instanceID: {type: Sequelize.INTEGER, allowNull: false},
@@ -25,6 +30,7 @@ module.exports = function(Sequelize, core){
         underscoredAll: false
     });
 
+    debug("Constructing the configuration model definition");
     //The configuration table
     core.model.configuration = core.sequelize.define(tablePrefix + 'Configuration', {
         key: {type: Sequelize.TEXT, allowNull: false},
@@ -34,6 +40,7 @@ module.exports = function(Sequelize, core){
         underscoredAll: false
     });
 
+    debug("Defining the association between the version and the instance");
     //The relationship between the instance and the Finite-state machine model version
     core.model.instance.belongsTo(core.model.version, {
         foreignKey: 'versionID',
@@ -41,6 +48,7 @@ module.exports = function(Sequelize, core){
         onDelete: 'CASCADE'
     });
 
+    debug("Defining the association between the snapshot and the instance");
     //The relationship between snapshots and instances
     core.model.snapshot.belongsTo(core.model.instance, {
         foreignKey: 'instanceID',
@@ -48,6 +56,7 @@ module.exports = function(Sequelize, core){
         onDelete: 'CASCADE'
     });
 
+    debug("Defining model functions");
     /**
      * Gets all the instances of a Finite-state machine by Finite-state machine name
      * @param fsmName The name of the Finite-state machine

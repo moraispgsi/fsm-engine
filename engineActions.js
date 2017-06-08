@@ -23,7 +23,6 @@ function schedule(arguments, sandbox, event) {
         return;
     }
 
-
     let job = schedule.scheduleJob(arguments.date, function(){
         debug("Fired on scheduled date");
         if(arguments.job) {

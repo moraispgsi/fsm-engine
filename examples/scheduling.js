@@ -10,15 +10,19 @@
  */
 let co = require('co');
 let init = require("../index");
+require('date-utils')
+
+
 
 co(function*(){
     let engine = yield init('mysql', 'localhost', 'root', 'root', 'mydatabase', {logging: false});
 
-    // let data = yield engine.createFSM("deadline");
-    // let version = data.version;
-    let version;
+    let data = yield engine.createFSM("deadline");
+    let version = data.version;
+    // let version;
     let scxml = `<scxml xmlns="http://www.w3.org/2005/07/scxml" version="1.0" datamodel="ecmascript"
     xmlns:ddm="https://insticc.org/DDM"
+    xmlns:test="https://insticc.org/test"
     xmlns:engine="https://INSTICC.org/fsm-engine"
     initial="uninitialized">
     <datamodel>
@@ -27,23 +31,23 @@ co(function*(){
         <data id="extensionDate" expr="null"/>
         <data id="deadlineId"    expr="-1"/>
         <data id="hideDate"      expr="null"/>
-        <data id="sevenDays"     expr="1000 * 60 * 60 * 24 * 7"/>
     </datamodel>
         <state id="uninitialized">
             <transition event="init" target="idle">
-                <assign location="date" expr="new Date(_event.date)"/>
+                <assign location="date" expr="new Date(new Date().getTime() + 1000 * 60)"/>
                 <assign location="deadlineId" expr="_event.deadlineId"/>
             </transition>
         </state>
         <state id="idle">
             <onentry>
                 <ddm:updateDeadline exprId="deadlineId" state="" />
-                <assign location="hideDate" expr="new Date(date.getTime() + sevenDays)"/>
+                <assign location="hideDate" expr="new Date(new Date().getTime() + 1000 * 60 * 2)"/>
                 <engine:schedule event="expired" exprDate="date" job="dateJob"/>
+                <test:test exprId="deadlineId" exprDate="date" />
             </onentry>
            <!-- if an extension event is receive, save the extension date -->
            <transition event="extension">
-               <assign location="extensionDate" expr="new Date(_event.extensionDate)"/> 
+               <assign location="extensionDate" expr="new Date(new Date().getTime() + 1000 * 60 * 2)"/> 
                <assign location="hasExtension" expr="true"/> 
            </transition>
            <!-- if the deadline receives the event cancel it goes to the state canceled -->
@@ -58,7 +62,7 @@ co(function*(){
      <state id="extended">
         <onentry>
             <ddm:updateDeadline exprId="deadlineId" state="extended" />
-            <assign location="hideDate" expr="new Date(extendedDate.getTime() + sevenDays)"/>
+            <assign location="hideDate" expr="new Date(new Date().getTime() + 1000 * 60 * 2)"/>
             <engine:schedule event="extensionExpired" exprDate="extensionDate" job="extensionJob"/>
         </onentry>
         <transition event="extensionExpired" target="expired"/>
@@ -73,7 +77,7 @@ co(function*(){
     <state id="canceled">
         <onentry>
             <ddm:updateDeadline exprId="deadlineId" state="canceled" />
-            <assign location="hideDate" expr="new Date(new Date().getTime() + 1000 * 60 * 60 * 24 * 7)"/>
+            <assign location="hideDate" expr="new Date(new Date().getTime() + 1000 * 60 * 2)"/>
             <engine:schedule event="hide" exprDate="hideDate" job="hideJob"/>
         </onentry>
         <transition event="hide" target="final"/>
@@ -84,8 +88,8 @@ co(function*(){
     </onentry>
 </final>
 </scxml>`;
-    // yield engine.setScxml(version.id, scxml);
-    // yield engine.seal(version.id);
+    yield engine.setScxml(version.id, scxml);
+    yield engine.seal(version.id);
 
     let fsm = yield engine.getFsmByName("deadline");
     version = yield engine.getLatestSealedFsmVersion(fsm.id);

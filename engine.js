@@ -7,10 +7,13 @@ module.exports = function(core, actionDispatcherHost){
     //Libraries
     let co = require('co');                                    //For a easier promise handling experience
     let scxml = require('scxml');                              //The scion library
+    let vm = require('vm');                              //The scion library
     let execute = require('./customExecContent')(actionDispatcherHost);   //The high level actions
     let Instance = require('./instance');
+    let debug = require("debug")("engine");
 
     return co(function*(){
+        debug('Synchronizing with the database');
         yield core.sequelize.sync();  //Synchronize the database with the database model definition
 
         let instanceStore = {};       //Storing the Finite-state machine instances in an object
@@ -19,6 +22,7 @@ module.exports = function(core, actionDispatcherHost){
         //CONFIGURATIONS
         ////////////////////////////////////
 
+        debug('Loading configuration');
         let serverConfig = yield core.getConfig();
         //If there isn't a configuration yet
         if(serverConfig.simulateTime === void 0) {
@@ -28,6 +32,7 @@ module.exports = function(core, actionDispatcherHost){
             yield core.setConfig(serverConfig);
         }
 
+        debug('Creating the global repo for the sandbox');
         //The server global data for the sandbox
         let serverGlobal =  {
             now: function(){
@@ -73,10 +78,9 @@ module.exports = function(core, actionDispatcherHost){
 
                 //Define the sandbox for the v8 virtual machine
                 let sandbox = {
+                    Date: Date,
                     //The server global variables and functions
                     globals: serverGlobal,
-                    //The object that will hold the properties of the instance
-                    properties: {},
                     //The function that will process the custom actions
                     postMessage: function (message) {
                         let type = message.data["$type"];
@@ -92,11 +96,11 @@ module.exports = function(core, actionDispatcherHost){
                             action = arr[0];
                         }
 
-                        console.log(this.raise);
-
                         execute.call(this, ns, action, sandbox, message._event, message.data);
                     }
                 };
+
+                let vmSandbox = vm.createContext(sandbox);
 
                 //Create the SCION-CORE fnModel to use in its interpreter
                 let fnModel = yield new Promise((resolve, reject) => {
@@ -105,11 +109,12 @@ module.exports = function(core, actionDispatcherHost){
                             reject(err);
                         }
                         resolve(fnModel);
-                    }, sandbox);
+                    }, vmSandbox);
                 }).then();
 
                 //Instantiate the interpreter
-                return new scxml.scion.Statechart(fnModel, {snapshot: snapshot});
+                let sc = new scxml.scion.Statechart(fnModel, {snapshot: snapshot});
+                return sc;
             });
         }
 
@@ -228,32 +233,36 @@ module.exports = function(core, actionDispatcherHost){
         //////////////////////////////////////////////////
         //ENGINE START
         //////////////////////////////////////////////////
-        // let instances = yield core.model.instance.findAll({
-        //     where: {
-        //         hasEnded: false
-        //     }
-        // });
+        debug('Getting all the instances');
         let instances = yield core.model.instance.findAll();
 
+        debug('Reloading the instances');
         //Iterating over the instances in order to restart them
         for (let instanceRow of instances) {
+            let shouldReload = instanceRow.hasStarted && instances.hasEnded;
             let versionID = instanceRow.dataValues.versionID;   //Get the versionID
-            //Find the latest Snapshot of the instance
-            let latestSnapshot = yield core.model.snapshot.findOne({
-                where: {
-                    instanceID: instanceRow.dataValues.id
-                },
-                order: [ [ 'updatedAt', 'DESC' ]]
-            });
+            let instance;
+            if(shouldReload){
+                //Find the latest Snapshot of the instance
+                let latestSnapshot = yield core.model.snapshot.findOne({
+                    where: {
+                        instanceID: instanceRow.dataValues.id
+                    },
+                    order: [ [ 'updatedAt', 'DESC' ]]
+                });
 
-            //The snapshot is parsed as JSON or is null if none was found
-            let snapshot = latestSnapshot ? JSON.parse(latestSnapshot.dataValues.snapshot) : null;
-            let instance = yield reloadInstance(versionID, snapshot, instanceRow.dataValues.id);
-            instance.start();
+                //The snapshot is parsed as JSON or is null if none was found
+                let snapshot = latestSnapshot ? JSON.parse(latestSnapshot.dataValues.snapshot) : null;
+                instance = yield reloadInstance(versionID, snapshot, instanceRow.dataValues.id);
+                instance.start();
+            } else {
+                instance = yield createInstance(versionID);
+            }
 
             instanceStore[instance.id] = instance; //Store the instance in the instanceStore
         }
 
+        debug('Engine is running');
         let engine = core;
         engine.createInstance = createInstance;
         // engine.reloadInstance = reloadInstance;
