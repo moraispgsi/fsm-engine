@@ -28,11 +28,10 @@ function schedule(arguments, sandbox, eventContext) {
 
     let job = scheduleLib.scheduleJob(date, function(){
         debug("Fired '%s' event on scheduled date '%s'", event, date);
-        console.log(event);
         if(jobIdentifier) {
             delete jobs[jobIdentifier];
         }
-        this.raise(event);
+        this.send({name: event});
 
     }.bind(this));
 

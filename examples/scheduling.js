@@ -34,14 +34,14 @@ co(function*(){
     </datamodel>
         <state id="uninitialized">
             <transition event="init" target="idle">
-                <assign location="date" expr="new Date(new Date().getTime() + 1000 * 10)"/>
+                <assign location="date" expr="new Date(new Date().getTime() + 1000 * 5)"/>
                 <assign location="deadlineId" expr="_event.deadlineId"/>
             </transition>
         </state>
         <state id="idle">
             <onentry>
                 <ddm:updateDeadline exprId="deadlineId" state="" />
-                <assign location="hideDate" expr="new Date(new Date().getTime() + 1000 * 60 * 2)"/>
+                <assign location="hideDate" expr="new Date(new Date().getTime() + 1000 * 10)"/>
                 <engine:schedule event="expired" exprDate="date" job="dateJob"/>
             </onentry>
            <!-- if an extension event is receive, save the extension date -->
@@ -61,7 +61,7 @@ co(function*(){
      <state id="extended">
         <onentry>
             <ddm:updateDeadline exprId="deadlineId" state="extended" />
-            <assign location="hideDate" expr="new Date(new Date().getTime() + 1000 * 60 * 2)"/>
+            <assign location="hideDate" expr="new Date(new Date().getTime() + 1000 * 5)"/>
             <engine:schedule event="extensionExpired" exprDate="extensionDate" job="extensionJob"/>
         </onentry>
         <transition event="extensionExpired" target="expired"/>

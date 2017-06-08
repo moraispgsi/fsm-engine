@@ -6,6 +6,7 @@ module.exports = function(actionDispatcherHost){
     let vm = require('vm');
     let request = require('request');
     let engineActions = require("./engineActions");
+    let debug = require('debug')("custom-action");
 
     /**
      * Executes a custom action on an actions server host by calling its REST API /execute method
@@ -23,6 +24,8 @@ module.exports = function(actionDispatcherHost){
                 action: action,
                 arguments: {}
             };
+
+            debug("Custom action with data: %s", data);
 
             for (let key of Object.keys(actionArguments)) {
                 if(key[0] !== '$'){
@@ -53,13 +56,15 @@ module.exports = function(actionDispatcherHost){
                 body: data,
             }, (error, response, body) => {
                 if (error) {
+                    debug("Request to action dispatcher failed with erro: %s", error)
                     if (errorEvent) {
-                        this.raise(errorEvent);
+                        this.send(errorEvent);
                     }
                     return;
                 }
                 if (successEvent) {
-                    this.raise(successEvent);
+                    debug("Request to action dispatcher was successful");
+                    this.send(successEvent);
                 }
             });
 
