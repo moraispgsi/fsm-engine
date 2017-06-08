@@ -92,7 +92,9 @@ module.exports = function(core, actionDispatcherHost){
                             action = arr[0];
                         }
 
-                        execute(ns, action, sandbox, message._event, message.data).bind(this);
+                        console.log(this.raise);
+
+                        execute.call(this, ns, action, sandbox, message._event, message.data);
                     }
                 };
 

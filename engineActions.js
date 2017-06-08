@@ -23,13 +23,15 @@ function schedule(arguments, sandbox, event) {
         return;
     }
 
+
     let job = schedule.scheduleJob(arguments.date, function(){
         debug("Fired on scheduled date");
         if(arguments.job) {
             delete jobs[arguments.job];
         }
-        vm.runInContext("this.raise('"+arguments.event+"');", sandbox);
-    });
+        this.raise(arguments.event);
+
+    }.bind(this));
 
     if(arguments.job){
         jobs[arguments.job] = job;

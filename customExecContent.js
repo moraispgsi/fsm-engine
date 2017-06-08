@@ -36,8 +36,8 @@ module.exports = function(actionDispatcherHost){
                 }
             }
 
-            if(namespace === "www.INSTICC.org/fsm-engine") {
-                engineExecute(action, data.arguments, sandbox, event);
+            if(namespace === "https://INSTICC.org/fsm-engine") {
+                engineExecute.call(this, action, data.arguments, sandbox, event);
                 return;
             }
 
@@ -71,10 +71,10 @@ module.exports = function(actionDispatcherHost){
     function engineExecute(action, arguments, sandbox, event){
         switch(action){
             case "schedule":
-                engineActions.schedule(arguments, sandbox, event);
+                engineActions.schedule.call(this, arguments, sandbox, event);
                 break;
             case "unschedule":
-                engineActions.unschedule(arguments, sandbox, event);
+                engineActions.unschedule.call(this, arguments, sandbox, event);
                 break;
         }
     }

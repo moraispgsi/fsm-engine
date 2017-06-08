@@ -13,7 +13,7 @@
     "fsm-core": "https://github.com/moraispgsi/fsm-core.git#123141e2c9ad658f3d36454825825521b0684075",
     "node-schedule": "^1.2.3",
     "request": "^2.81.0",
-    "scxml": "https://github.com/moraispgsi/SCION.git#f34a99438b0ecca56447594699b3227ef3dc231a",
+    "scxml": "https://github.com/moraispgsi/SCION.git#519593021e0ccd5abef5529db5cfa733f7e88dc8",
     "sequelize": "^4.0.0"
   },
   "devDependencies": {
