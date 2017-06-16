@@ -2,8 +2,6 @@
  * Created by Ricardo Morais on 24/04/2017.
  */
 
-import co from "co";
-
 const SNAPSHOT_DELAY = 1000 * 45; //The delay
 /**
  * The instance class
@@ -18,53 +16,50 @@ export default class Instance {
         this.instanceKey = instanceKey;
     }
 
-    _save() {
-        return co(function*() {
-            //Take a snapshot of the instance
-            let snapshot = this.sc.getSnapshot();
-            //Get last snapshot on the database
-            let snapshotsKeys = this.core.getSnapshotsKeys(this.machineName, this.versionKey, this.instanceKey);
-            if(snapshotsKeys.length > 0) {
-                let lastSnapshotKey = snapshotsKeys[snapshotsKeys.length - 1];
-                let info = this.core.getSnapshotInfo(this.machineName, this.versionKey, this.instanceKey, lastSnapshotKey);
-                if(JSON.stringify(snapshot) === JSON.stringify(info)) {
-                    //No change since the latest snapshot
-                    return;
-                }
+    async _save() {
+        //Take a snapshot of the instance
+        let snapshot = this.sc.getSnapshot();
+        //Get last snapshot on the database
+        let snapshotsKeys = this.core.getSnapshotsKeys(this.machineName, this.versionKey, this.instanceKey);
+        if (snapshotsKeys.length > 0) {
+            let lastSnapshotKey = snapshotsKeys[snapshotsKeys.length - 1];
+            let info = this.core.getSnapshotInfo(this.machineName, this.versionKey, this.instanceKey, lastSnapshotKey);
+            if (JSON.stringify(snapshot) === JSON.stringify(info)) {
+                //No change since the latest snapshot
+                return;
             }
-            yield this.core.addSnapshot(this.machineName, this.versionKey, this.instanceKey, snapshot);
-        }.bind(this));
+        }
+        await this.core.addSnapshot(this.machineName, this.versionKey, this.instanceKey, snapshot);
     }
 
-    start() {
-        return co(function*() {
-            yield this._save();  //Saves the first snapshot
-            //Mark has changed
-            this.sc.on("onTransition", ()=>{this.hasChanged = true});
-            this.sc.start();                    //Start the statechart
-            this.interval = setInterval(function(){
-                if(this.sc === null) {
-                    clearInterval(this.interval);
-                    return;
-                }
-                if(this.sc.isFinal()){
-                    let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
-                    info.hasEnded = true;
-                    this.core.setInstanceInfo(this.machineName, this.versionKey, this.instanceKey, info);
-                    return;
-                }
-                if(!this.sc._isStepping && this.hasChanged){
-                    this._save().then();
-                    this.hasChanged = false;
-                }
-            }.bind(this), SNAPSHOT_DELAY);
+    async start() {
+        await this._save();  //Saves the first snapshot
+        //Mark has changed
+        this.sc.on("onTransition", () => {
+            this.hasChanged = true
+        });
+        this.sc.start();                    //Start the statechart
+        this.interval = setInterval(function () {
+            if (this.sc === null) {
+                clearInterval(this.interval);
+                return;
+            }
+            if (this.sc.isFinal()) {
+                let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
+                info.hasEnded = true;
+                this.core.setInstanceInfo(this.machineName, this.versionKey, this.instanceKey, info);
+                return;
+            }
+            if (!this.sc._isStepping && this.hasChanged) {
+                this._save().then();
+                this.hasChanged = false;
+            }
+        }.bind(this), SNAPSHOT_DELAY);
 
-            //Since it hasn't started yet mark it as started
-            let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
-            info.hasStarted = true;
-            this.core.setInstanceInfo(this.machineName, this.versionKey, this.instanceKey, info);
-
-        }.bind(this));
+        //Since it hasn't started yet mark it as started
+        let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
+        info.hasStarted = true;
+        this.core.setInstanceInfo(this.machineName, this.versionKey, this.instanceKey, info);
     }
 
     getStateChart() {
@@ -87,9 +82,6 @@ export default class Instance {
     revert(snapshotKey) {
         //todo
         //kill the stateChart(HOW) > Create a new statechart > start the instance
-        return co(function*(){
-
-        });
     }
 
     /**
@@ -99,7 +91,7 @@ export default class Instance {
      */
     sendEvent(eventName, data) {
         //Find out if the instance has already started
-        if(!(this.hasStarted())) {
+        if (!(this.hasStarted())) {
             throw new Error("The instance hasn't started yet.");
         }
         data = data || {};
