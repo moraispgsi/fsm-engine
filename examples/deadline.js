@@ -2,7 +2,7 @@
  * Created by Ricardo Morais on 13/04/2017.
  */
 let co = require('co');
-let init = require("../index");
+let init = require("../src/index");
 
 co(function*(){
     let engine = yield init('mysql', 'localhost', 'root', 'root', 'mydatabase', {logging: false});

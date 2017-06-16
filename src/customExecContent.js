@@ -1,12 +1,15 @@
 /**
  * Created by Ricardo Morais on 28/03/2017.
  */
-module.exports = function(actionDispatcherHost){
 
-    let vm = require('vm');
-    let request = require('request');
-    let engineActions = require("./engineActions");
-    let debug = require('debug')("custom-action");
+import vm from "vm";
+import request from "request";
+import engineActions from "./engineActions";
+import debugStart from "debug";
+let debug = debugStart("custom-action");
+
+export default function(actionDispatcherHost){
+
 
     /**
      * Executes a custom action on an actions server host by calling its REST API /execute method
@@ -16,7 +19,7 @@ module.exports = function(actionDispatcherHost){
      * @param event The event in case the action was requested inside a transition
      * @param actionArguments The arguments of the action call
      */
-    let execute = function(namespace, action, sandbox, event, actionArguments) {
+    return function(namespace, action, sandbox, event, actionArguments) {
 
         try {
             let data = {
@@ -25,7 +28,7 @@ module.exports = function(actionDispatcherHost){
                 arguments: {}
             };
 
-            debug("Custom action with data: %s", data);
+            debug("Custom action with data: %s", JSON.stringify(data));
 
             for (let key of Object.keys(actionArguments)) {
                 if(key[0] !== '$'){
@@ -73,17 +76,15 @@ module.exports = function(actionDispatcherHost){
         }
     };
 
-    function engineExecute(action, arguments, sandbox, event){
+    function engineExecute(action, args, sandbox, event){
         switch(action){
             case "schedule":
-                engineActions.schedule.call(this, arguments, sandbox, event);
+                engineActions.schedule.call(this, args, sandbox, event);
                 break;
             case "unschedule":
-                engineActions.unschedule.call(this, arguments, sandbox, event);
+                engineActions.unschedule.call(this, args, sandbox, event);
                 break;
         }
     }
-
-    return execute;
 
 };

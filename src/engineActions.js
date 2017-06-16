@@ -16,15 +16,15 @@ let jobs = {};
  * @param sandbox
  * @param event
  */
-function schedule(arguments, sandbox, eventContext) {
+function schedule(args, sandbox, eventContext) {
     debug("Action schedule");
-    if(!arguments.event) {
+    if(!args.event) {
         debug("Missing the event argument, not executed");
         return;
     }
-    let event = arguments.event;
-    let date = arguments.date;
-    let jobIdentifier = arguments.job;
+    let event = args.event;
+    let date = args.date;
+    let jobIdentifier = args.job;
 
     let job = scheduleLib.scheduleJob(date, function(){
         debug("Fired '%s' event on scheduled date '%s'", event, date);
@@ -35,8 +35,8 @@ function schedule(arguments, sandbox, eventContext) {
 
     }.bind(this));
 
-    if(arguments.job){
-        jobs[arguments.job] = job;
+    if(args.job){
+        jobs[args.job] = job;
     }
 }
 
@@ -47,15 +47,15 @@ function schedule(arguments, sandbox, eventContext) {
  * @param sandbox
  * @param event
  */
-function unschedule(arguments, sandbox, eventContext) {
+function unschedule(args, sandbox, eventContext) {
     debug("Action unschedule");
-    if(!arguments.job){
+    if(!args.job){
         debug("Missing the job argument, not executed");
     }
-    jobs[arguments.job].cancel();
+    jobs[args.job].cancel();
 }
 
-module.exports = {
+export default {
     schedule: schedule,
     unschedule: unschedule
 };

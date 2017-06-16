@@ -2,34 +2,38 @@
  * Created by Ricardo Morais on 19/05/2017.
  */
 
-module.exports = function(core, actionDispatcherHost){
+module.exports = function(actionDispatcherHost, repositoryPath){
 
     //Libraries
-    let co = require('co');                                    //For a easier promise handling experience
-    let scxml = require('scxml');                              //The scion library
-    let vm = require('vm');                              //The scion library
-    let execute = require('./customExecContent')(actionDispatcherHost);   //The high level actions
+    let co = require('co');
+    let core = require('fsm-core')(repositoryPath);
+    let scxml = require('scxml');
+    let vm = require('vm');
+    let execute = require('./customExecContent')(actionDispatcherHost);
     let Instance = require('./instance');
     let debug = require("debug")("engine");
 
     return co(function*(){
-        debug('Synchronizing with the database');
-        yield core.sequelize.sync();  //Synchronize the database with the database model definition
 
-        let instanceStore = {};       //Storing the Finite-state machine instances in an object
+
+        debug("Starting the core");
+        yield core.init()
+        debug("Core was initialized");
+
+        let instanceStore = {};
 
         ////////////////////////////////////
         //CONFIGURATIONS
         ////////////////////////////////////
 
         debug('Loading configuration');
-        let serverConfig = yield core.getConfig();
+        let serverConfig = core.getConfig();
         //If there isn't a configuration yet
-        if(serverConfig.simulateTime === void 0) {
+        if(!serverConfig.simulateTime) {
             serverConfig.simulateTime = false;
             serverConfig.simulationCurrentDate = new Date();
             serverConfig.snapshotFrequency = 1000;
-            yield core.setConfig(serverConfig);
+            core.setConfig(serverConfig);
         }
 
         debug('Creating the global repo for the sandbox');
@@ -49,26 +53,24 @@ module.exports = function(core, actionDispatcherHost){
         ////////////////////////////////////
         /**
          * Creates a SCION state chart with the versionID and optionally with a snapshot
-         * @param versionID The Finite-state machine version
          * @param snapshot A snapshot of the state of the statechart
          * @returns {Promise} A Promise to create a SCION statechart and return it
          * @private
          */
-        function _createStateChart(versionID, snapshot) {
+        function _createStateChart(machineName, versionKey, snapshot) {
             return co(function*() {
 
+                debug("Checking if the version is sealed");
                 //Make sure the version is sealed
-                let isVersionSealed = yield core.isVersionSealed(versionID);
+                let isVersionSealed = core.getVersionInfo(machineName, versionKey).isSealed;
                 if(!isVersionSealed){
-                    throw new Error("The Finite-state machine version is not sealed");
+                    throw new Error("The version is not sealed");
                 }
 
-                let version = yield core.model.version.findById(versionID); //Find the version with the versionID
-                let scxmlDocumentString = version.dataValues.scxml;            //Get the SCXML document from the version
-
+                let documentString = core.getVersionSCXML(machineName, versionKey);
                 //Create the SCION model from the SCXML document
                 let model = yield new Promise((resolve, reject) => {
-                    scxml.documentStringToModel(null, scxmlDocumentString, function (err, model) {
+                    scxml.documentStringToModel(null, documentString, function (err, model) {
                         if (err) {
                             reject(err);
                         }
@@ -113,8 +115,7 @@ module.exports = function(core, actionDispatcherHost){
                 }).then();
 
                 //Instantiate the interpreter
-                let sc = new scxml.scion.Statechart(fnModel, {snapshot: snapshot});
-                return sc;
+                return new scxml.scion.Statechart(fnModel, {snapshot: snapshot});
             });
         }
 
@@ -125,17 +126,13 @@ module.exports = function(core, actionDispatcherHost){
          * @returns {Promise} A Promise that creates an instance object and returns it
          * @private
          */
-        function _makeInstance(versionID, sc) {
+        function _makeInstance(machineName, versionKey, sc) {
             return co(function*() {
+                debug("Creating the instance");
                 //start the interpreter
-                let instanceRow = yield core.model.instance.create({
-                    versionID: versionID,
-                    hasStarted: false,
-                    hasEnded: false
-                });
-                let instanceID = instanceRow.dataValues.id;
-                let instance = new Instance(core, sc, instanceID);
-                instanceStore[instanceID] = instance;
+                let instanceKey = yield core.addInstance(machineName, versionKey);
+                let instance = new Instance(core, sc, machineName, versionKey, instanceKey);
+                instanceStore[machineName + versionKey + instanceKey] = instance;
                 return instance;
             })
         }
@@ -146,39 +143,36 @@ module.exports = function(core, actionDispatcherHost){
          * @returns {Promise} A Promise that creates an instance from a Finite-state machine versin and returns an instance
          * object
          */
-        function createInstance(versionID) {
+        function addInstance(machineName, versionKey, instanceKey) {
             return co(function*() {
-                let sc = yield _createStateChart(versionID);
-                return yield _makeInstance(versionID, sc);
+                let sc = yield _createStateChart(machineName, versionKey);
+                return yield _makeInstance(machineName, versionKey, sc);
             });
         }
 
         /**
          * Recreates an instance using a snapshot
-         * @param versionID The Finite-state machine version to use as the model
          * @param snapshot The instance snapshot
-         * @param instanceID The id of the instance in the DataBase
          * @returns {Promise} A Promise that creates an instance from a Finite-state machine versin and returns an instance
          * object
          */
-        function reloadInstance(versionID, snapshot, instanceID) {
+        function reloadInstance(machineName, versionKey, instanceKey, snapshot) {
             return co(function*() {
-                let sc = yield _createStateChart(versionID, snapshot);    //Creates the StateChart using the snapshot
-                let instance = new Instance(core, sc, instanceID);      //Creates an instance object
-                return instance;
+                let sc = yield _createStateChart(machineName, versionKey, snapshot); //Creates the StateChart using the snapshot
+                return new Instance(core, sc, machineName, versionKey, instanceKey); //Creates an instance object
             });
         }
 
         /**
          * Gets a instance object from its ID
-         * @param id The id of the instance object
          * @returns {Instance} The instance with the specified ID
          */
-        function getInstance(id) {
-            if (!instanceStore[id]) {
+        function getInstance(machineName, versionKey, instanceKey) {
+            let key = machineName + versionKey + instanceKey;
+            if (!instanceStore[key]) {
                 throw new Error("Instance not found");
             }
-            return instanceStore[id];
+            return instanceStore[key];
         }
 
         /**
@@ -230,51 +224,78 @@ module.exports = function(core, actionDispatcherHost){
             core.setConfig(serverConfig);
         }
 
+
         //////////////////////////////////////////////////
         //ENGINE START
         //////////////////////////////////////////////////
-        debug('Getting all the instances');
-        let instances = yield core.model.instance.findAll();
+        debug('Attepting to reload instances');
+        for(let machineName of core.getMachinesNames()) {
+            for(let versionKey of core.getVersionsKeys(machineName)) {
+                for(let instanceKey of core.getInstancesKeys(machineName, versionKey)) {
+                    let info = core.getInstanceInfo(machineName, versionKey, instanceKey);
+                    let shouldReload  = false;//= info.hasStarted && info.hasEnded;
+                    let instance = null;
+                    if(shouldReload){
+                        //todo - change the core to allow snapshots
 
-        debug('Reloading the instances');
-        //Iterating over the instances in order to restart them
-        for (let instanceRow of instances) {
-            let shouldReload = instanceRow.hasStarted && instances.hasEnded;
-            let versionID = instanceRow.dataValues.versionID;   //Get the versionID
-            let instance;
-            if(shouldReload){
-                //Find the latest Snapshot of the instance
-                let latestSnapshot = yield core.model.snapshot.findOne({
-                    where: {
-                        instanceID: instanceRow.dataValues.id
-                    },
-                    order: [ [ 'updatedAt', 'DESC' ]]
-                });
+                        //The snapshot is parsed as JSON or is null if none was found
+                        // instance = yield reloadInstance(machineName, versionKey, instanceKey, snapshot);
+                        // instance.start();
 
-                //The snapshot is parsed as JSON or is null if none was found
-                let snapshot = latestSnapshot ? JSON.parse(latestSnapshot.dataValues.snapshot) : null;
-                instance = yield reloadInstance(versionID, snapshot, instanceRow.dataValues.id);
-                instance.start();
-            } else {
-                instance = yield createInstance(versionID);
+                    } else {
+                        instance = yield addInstance(machineName, versionKey, instanceKey);
+                    }
+
+                    instanceStore[machineName + versionKey + instanceKey] = instance; //Store the instance in the instanceStore
+                }
             }
 
-            instanceStore[instance.id] = instance; //Store the instance in the instanceStore
         }
 
         debug('Engine is running');
-        let engine = core;
-        engine.createInstance = createInstance;
-        // engine.reloadInstance = reloadInstance;
-        engine.getInstance = getInstance;
-        engine.sendGlobalEvent = sendGlobalEvent;
-        engine.setCurrentSimulationDate = setCurrentSimulationDate;
-        engine.getCurrentSimulationDate = getCurrentSimulationDate;
-        engine.enableSimulationMode = enableSimulationMode;
-        engine.disableSimulationMode = disableSimulationMode;
-        return engine;
-
+        return {
+            getRepositoryPath        :core.getRepositoryPath,
+            getManifest              :core.getManifest,
+            getConfig                :core.getConfig,
+            setConfig                :core.setConfig,
+            //////////////////////////////
+            getMachinesNames         :core.getMachinesNames,
+            addMachine               :core.addMachine,
+            removeMachine            :core.removeMachine,
+            //////////////////////////////
+            getVersionsKeys          :core.getVersionsKeys,
+            getVersionRoute          :core.getVersionRoute,
+            getVersionInfoRoute      :core.getVersionInfoRoute,
+            getVersionModelRoute     :core.getVersionModelRoute,
+            getVersionInfo           :core.getVersionInfo,
+            setVersionInfo           :core.setVersionInfo,
+            addVersion               :core.addVersion,
+            sealVersion              :core.sealVersion,
+            isSCXMLValid             :core.isSCXMLValid,
+            getVersionSCXML          :core.getVersionSCXML,
+            setVersionSCXML          :core.setVersionSCXML,
+            //////////////////////////////
+            getInstancesKeys         :core.getInstancesKeys,
+            getInstanceRoute         :core.getInstanceRoute,
+            getInstanceInfoRoute     :core.getInstanceInfoRoute,
+            getInstanceInfo          :core.getInstanceInfo,
+            setInstanceInfo          :core.setInstanceInfo,
+            addInstance              :addInstance,
+            //////////////////////////////
+            getSnapshotsKeys         :core.getSnapshotsKeys,
+            getSnapshotRoute         :core.getSnapshotRoute,
+            getSnapshotInfoRoute     :core.getSnapshotInfoRoute,
+            getSnapshotInfo          :core.getSnapshotInfo,
+            addSnapshot              :core.addSnapshot,
+            //////////////////////////////
+            getInstance              :getInstance,
+            // reloadInstance           :reloadInstance,
+            sendGlobalEvent          :sendGlobalEvent,
+            setCurrentSimulationDate :setCurrentSimulationDate,
+            getCurrentSimulationDate :getCurrentSimulationDate,
+            enableSimulationMode     :enableSimulationMode,
+            disableSimulationMode    :disableSimulationMode
+        };
     });
-
 };
 

@@ -1,23 +1,10 @@
-
-// let schedule = require('node-schedule');
-// let date = new Date("Wed Jun 07 2017 20:21:00 GMT+0100 (GMT Daylight Time)");
-//
-// let id = schedule.scheduleJob(date, function(){
-//     console.log('The world is going to end today.');
-// });
-/**
- * Created by Ricardo Morais on 13/04/2017.
- */
-let co = require('co');
-let init = require("../src/index");
-require('date-utils')
+let Engine = require("./../dist/index");
+let co = require("co")
 
 co(function*(){
-    console.log(__dirname + "/repo");
-    let engine = yield init(null, process.cwd() + "/repo");
-
-    // let version;
-    let scxml = `<scxml xmlns="http://www.w3.org/2005/07/scxml" version="1.0" datamodel="ecmascript"
+  let engine = new Engine(void 0, process.cwd() + "/repo");
+  yield engine.init();
+  let scxml = `<scxml xmlns="http://www.w3.org/2005/07/scxml" version="1.0" datamodel="ecmascript"
     xmlns:ddm="https://insticc.org/DDM"
     xmlns:test="https://insticc.org/test"
     xmlns:engine="https://INSTICC.org/fsm-engine"
@@ -84,14 +71,14 @@ co(function*(){
     </onentry>
 </final>
 </scxml>`;
+  yield engine.addMachine("deadline");
+  engine.setVersionSCXML("deadline", "version1", scxml);
+  yield engine.sealVersion("deadline", "version1");
+  let instance = yield engine.addInstance("deadline", "version1");
+  yield instance.start();
+  let date = new Date(new Date().getTime() + 1000 * 10);
+  instance.sc.on("onTransition", (state)=>{console.log(state);});
+  instance.sendEvent('init', {date: date, deadlineId: 1, now: new Date()});
 
-    // yield engine.addMachine("deadline");
-    engine.setVersionSCXML("deadline", "version1", scxml);
-    yield engine.sealVersion("deadline", "version1");
-    // let instance = yield engine.addInstance("deadline", "version1");
-    // yield instance.start();
-    // let date = new Date(new Date().getTime() + 1000 * 10);
-    // instance.sc.on("onTransition", (state)=>{console.log(state);});
-    // yield instance.sendEvent('init', {date: date, deadlineId: 1, now: new Date()});
+}).catch((err)=>{console.log(err)});
 
-}).catch((err)=> console.log(err));
