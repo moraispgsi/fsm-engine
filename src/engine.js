@@ -1,6 +1,4 @@
 //Libraries
-import scxml from "scxml";
-import vm from "vm";
 import Instance from "./instance";
 import Core from "fsm-core";
 import customExecuteStart from "./customExecContent";
@@ -15,17 +13,26 @@ export default class Engine extends Core{
         this.repositoryPath = repositoryPath;
         this.instanceStore = {};
         this.hasStarted = false;
+        this.isRunning = false;
         this.serverConfig = null;
         this.serverGlobals = null;
         this.execute = customExecuteStart(actionDispatcherHost);
     }
 
-    async init(){
+    async init(cloneURL, publicKey, privateKey, passphrase){
+
         if(this.hasStarted) {
             throw new Error("Engine has already stated.");
         }
+
+        this.instanceStore = {};
+
         debug("Starting the");
-        await super.init();
+        if(cloneURL){
+            await super.initRemoteGitSSH(cloneURL, publicKey, privateKey, passphrase);
+        } else {
+            await super.init();
+        }
         debug("Core was initialized");
 
         this.serverConfig = this._loadConfig();
@@ -42,8 +49,8 @@ export default class Engine extends Core{
                         //todo - change the to allow snapshots
 
                         //The snapshot is parsed as JSON or is null if none was found
-                        // instance = await reloadInstance(machineName, versionKey, instanceKey, snapshot);
-                        // instance.start();
+                        instance = await reloadInstance(machineName, versionKey, instanceKey, snapshot);
+                        instance.start();
 
                     } else {
                         instance = await this.addInstance(machineName, versionKey, instanceKey);
@@ -56,9 +63,28 @@ export default class Engine extends Core{
         }
 
         debug('Engine is running');
-
-        this.hasStarted = true;
+        this.isRunning = true;
     }
+
+    resume() {
+        debug('Engine resuming');
+        for(let key of Object.keys(this.instanceStore)){
+            //todo get latest snapshot to restart
+            this.instanceStore[key].start();
+        }
+        this.isRunning = true;
+        debug('Engine has resumed');
+    }
+
+    stop(){
+        debug('Engine stopping');
+        for(let key of Object.keys(this.instanceStore)){
+            this.instanceStore[key].stop();
+        }
+
+        this.isRunning = false;
+        debug('Engine has stopped');
+    };
 
     _loadConfig(){
         debug('Loading configuration');
@@ -73,6 +99,7 @@ export default class Engine extends Core{
         }
         return serverConfig;
     }
+
 
     _generateServerGlobals(serverConfig){
         //The server global data for the sandbox
@@ -89,59 +116,16 @@ export default class Engine extends Core{
         return serverGlobals;
     }
 
-    async createStateChart(documentString, snapshot) {
-        //Create the SCION model from the SCXML document
-        let model = await new Promise((resolve, reject) => {
-            scxml.documentStringToModel(null, documentString, function (err, model) {
-                if (err) {
-                    reject(err);
-                }
-                resolve(model);
-            });
-        }).then();
-
-        let execute = this.execute;
-        //Define the sandbox for the v8 virtual machine
-        let sandbox = {
-            Date: Date,
-            //The server global variables and functions
-            globals: this.serverGlobals,
-            //The function that will process the custom actions
-            postMessage: function (message) {
-                let type = message.data["$type"];
-                let stripNsPrefixRe = /^(?:{(?:[^}]*)})?(.*)$/;
-                let arr = stripNsPrefixRe.exec(type);
-                let ns;
-                let action;
-                if(arr.length === 2) {
-                    ns = type.substring(1, type.indexOf("}"));
-                    action = arr[1];
-                } else {
-                    ns = "";
-                    action = arr[0];
-                }
-
-                execute.call(this, ns, action, sandbox, message._event, message.data);
-            }
-        };
-
-        let vmSandbox = vm.createContext(sandbox);
-
-        //Create the SCION-CORE fnModel to use in its interpreter
-        let fnModel = await new Promise((resolve, reject) => {
-            model.prepare(function (err, fnModel) {
-                if (err) {
-                    reject(err);
-                }
-                resolve(fnModel);
-            }, vmSandbox);
-        }).then();
-
-        //Instantiate the interpreter
-        return new scxml.scion.Statechart(fnModel, {snapshot: snapshot});
+    async _makeInstance(documentString, machineName, versionKey) {
+        debug("Creating the instance");
+        //start the interpreter
+        let instanceKey = await super.addInstance(machineName, versionKey);
+        let instance = new Instance(this, documentString, null, machineName, versionKey, instanceKey);
+        this.instanceStore[machineName + versionKey + instanceKey] = instance;
+        return instance;
     }
 
-    async _createStateChartFromVersion(machineName, versionKey, snapshot) {
+    async addInstance(machineName, versionKey) {
         debug("Checking if the version is sealed");
         //Making sure the version is sealed
         let isVersionSealed = this.getVersionInfo(machineName, versionKey).isSealed;
@@ -150,26 +134,20 @@ export default class Engine extends Core{
         }
 
         let documentString = this.getVersionSCXML(machineName, versionKey);
-        return await this.createStateChart(documentString, snapshot);
-    }
-
-    async _makeInstance(machineName, versionKey, sc) {
-        debug("Creating the instance");
-        //start the interpreter
-        let instanceKey = await super.addInstance(machineName, versionKey);
-        let instance = new Instance(this, sc, machineName, versionKey, instanceKey);
-        this.instanceStore[machineName + versionKey + instanceKey] = instance;
-        return instance;
-    }
-
-    async addInstance(machineName, versionKey) {
-        let sc = await this._createStateChartFromVersion(machineName, versionKey);
-        return await this._makeInstance(machineName, versionKey, sc);
+        return await this._makeInstance(documentString, machineName, versionKey);
     }
 
     async reloadInstance(machineName, versionKey, instanceKey, snapshot) {
-        let sc = await this._createStateChartFromVersion(machineName, versionKey, snapshot);
-        return new Instance(this, sc, machineName, versionKey, instanceKey);
+
+        debug("Checking if the version is sealed");
+        //Making sure the version is sealed
+        let isVersionSealed = this.getVersionInfo(machineName, versionKey).isSealed;
+        if(!isVersionSealed){
+            throw new Error("The version is not sealed");
+        }
+
+        let documentString = this.getVersionSCXML(machineName, versionKey);
+        return new Instance(this, documentString, snapshot, machineName, versionKey, instanceKey);
     }
 
     getInstance(machineName, versionKey, instanceKey) {

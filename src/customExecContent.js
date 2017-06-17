@@ -10,7 +10,6 @@ let debug = debugStart("custom-action");
 
 export default function(actionDispatcherHost){
 
-
     /**
      * Executes a custom action on an actions server host by calling its REST API /execute method
      * @param namespace The namespace of the action
@@ -49,8 +48,8 @@ export default function(actionDispatcherHost){
 
             let host = actionDispatcherHost;
             let route = "/execute";
-            let errorEvent = actionArguments.errorEvent;
-            let successEvent = actionArguments.successEvent;
+            let errorEvent = data.arguments.errorEvent;
+            let successEvent = data.arguments.successEvent;
 
             request({
                 url: host + route,
@@ -59,20 +58,20 @@ export default function(actionDispatcherHost){
                 body: data,
             }, (error, response, body) => {
                 if (error) {
-                    debug("Request to action dispatcher failed with erro: %s", error)
+                    debug("Request to action dispatcher failed with error: %s", error);
                     if (errorEvent) {
-                        this.send(errorEvent);
+                        this.send({name: errorEvent, data: error});
                     }
                     return;
                 }
                 if (successEvent) {
                     debug("Request to action dispatcher was successful");
-                    this.send(successEvent);
+                    this.send({name: successEvent, data: error});
                 }
             });
 
         } catch (err) {
-            console.log(err);
+            debug("Custom action not executed");
         }
     };
 
