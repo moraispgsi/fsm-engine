@@ -3,12 +3,11 @@
  */
 
 import Interpreter from "./interpreter";
-let context = {
-    interpreter: null
-};
 import debugStart from "debug";
 let debug = debugStart("interpreter");
 debug("Initializing the interpreter process");
+
+let context = { interpreter: null };
 
 process.on('message', function(message) {
     debug("Message received");
@@ -78,5 +77,4 @@ process.on('message', function(message) {
             });
             break;
     }
-
 });

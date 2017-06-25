@@ -16,7 +16,7 @@ co(function*(){
         <data id="deadlineId"    expr="-1"/>
         <data id="hideDate"      expr="null"/>
     </datamodel>
-        <state id="uninitialized">
+        <state id="uninitialized"> 
             <transition event="init" target="idle">
                 <assign location="date" expr="new Date(new Date().getTime() + 1000 * 5)"/>
                 <assign location="deadlineId" expr="_event.deadlineId"/>
