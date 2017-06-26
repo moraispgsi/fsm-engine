@@ -4,23 +4,41 @@
 
 import debugStart from "debug";
 let debug = debugStart("instance");
+import dush from "dush";
 /**
  * The instance class
  */
 export default class Instance {
 
-    constructor(core, documentString, actionDispatcherURL, machineName, versionKey, instanceKey) {
+    /**
+     * Contructor for an instance
+     * @param core The fsm-core
+     * @param documentString The SCXML document
+     * @param actionDispatcherURL The URL for the action-dispatcher
+     * @param machineName The machine name
+     * @param versionKey The version key
+     * @param instanceKey The instance Key
+     * @param interpreterPath The interpreter process JavaScript file path
+     */
+    constructor(core, documentString, actionDispatcherURL, machineName, versionKey, instanceKey, interpreterPath) {
         this.core = core;
         this.documentString = documentString;
         this.actionDispatcher = actionDispatcherURL;
         this.machineName = machineName;
         this.versionKey = versionKey;
         this.instanceKey = instanceKey;
+        this.interpreterPath = interpreterPath || __dirname + '/interpreterProcess.js';
+        this.emitter = dush();
     }
 
-    async _save() {
+    /**
+     * Saves a snapshot if it is different from the latest one in the repository
+     * @param {Object} snapshot The snapshot object
+     * @returns {Promise.<void>}
+     * @private
+     */
+    async _save(snapshot) {
         //Take a snapshot of the instance
-        let snapshot = this.sc.getSnapshot();
         //Get last snapshot on the database
         let snapshotsKeys = this.core.getSnapshotsKeys(this.machineName, this.versionKey, this.instanceKey);
         if (snapshotsKeys.length > 0) {
@@ -34,34 +52,47 @@ export default class Instance {
         await this.core.addSnapshot(this.machineName, this.versionKey, this.instanceKey, snapshot);
     }
 
+    /**
+     * Starts the interpreter process
+     * @param snapshot An optional snapshot to run the interpreter
+     * @returns {Promise.<void>}
+     */
     async start(snapshot) {
-        // await this._save();  //Saves the first snapshot
-        //Mark has changed
-        // this.sc.on("onTransition", () => {
-        //     this.hasChanged = true
-        // });
-        // this.sc.start();                    //Start the statechart
         let cp = require('child_process');
-        let child = cp.fork(__dirname + '/interpreterProcess.js');
+        let child = cp.fork(this.interpreterPath);
         this.child =  child;
         debug("Forked the interpreter process");
 
         let documentString = this.documentString;
         let actionDispatcherURL = null;
 
+        child.on("message", (message) => {
+            debug("Message received");
+            this.emitter.emit(message.action, message);
+        });
+
         //Send messages to initialize and start the interpreter
-        await new Promise(function(resolve, reject) {
-            child.on('message', function(message) {
-                switch(message.action) {
-                    case 'init':
-                        debug("Init ACK");
-                        child.send({action: "start"});
-                        break;
-                    case 'start':
-                        debug("Start ACK");
-                        resolve();
-                        break;
-                }
+        await new Promise((resolve, reject) => {
+            this.emitter.once("initACK", (data) => {
+                debug("Init ACK");
+                this.emitter.off("initNACK");
+                child.send({action: "start"});
+                this.emitter.once("startACK", () => {
+                    debug("start ACK");
+                    this.emitter.off("startNACK");
+                    resolve();
+                });
+                this.emitter.once("startNACK", (data) => {
+                    debug("start NACK");
+                    this.emitter.off("startACK");
+                    reject(data.message)
+                });
+            });
+
+            this.emitter.once("initNACK", (data) => {
+                debug("Init NACK %s", data.message);
+                this.emitter.off("initACK");
+                reject(data.message)
             });
 
             child.send({
@@ -72,28 +103,27 @@ export default class Instance {
             });
         });
 
-        // this.interval = setInterval(function () {
-        //     if (this.sc === null) {
-        //         clearInterval(this.interval);
-        //         return;
-        //     }
-        //     if (this.sc.isFinal()) {
-        //         let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
-        //         info.hasEnded = true;
-        //         this.core.setInstanceInfo(this.machineName, this.versionKey, this.instanceKey, info);
-        //         return;
-        //     }
-        //     if (!this.sc._isStepping && this.hasChanged) {
-        //         this._save().then();
-        //         this.hasChanged = false;
-        //     }
-        // }.bind(this), SNAPSHOT_DELAY);
+        this.emitter.once("finished", (data) => {
+            child.kill();
+            let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
+            info.hasStarted = true;
+            info.hasStopped = false;
+            info.hasEnded = true;
+            this.core.setInstanceInfo(this.machineName, this.versionKey, this.instanceKey, info);
+        });
+
+        this.emitter.once("snapshot", (data) => {
+            this._save(data.snapshot).then();
+        });
 
         let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
         info.hasStarted = true;
         this.core.setInstanceInfo(this.machineName, this.versionKey, this.instanceKey, info);
     }
 
+    /**
+     * Forces the interpreter to stop.
+     */
     stop() {
         if(this.hasStarted() && !this.hasEnded()){
             this.child.kill();
@@ -110,21 +140,24 @@ export default class Instance {
         return info.hasStarted;
     }
 
+    hasStopped() {
+        let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
+        return info.hasStopped;
+    }
+
     hasEnded() {
         let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
         return info.hasEnded;
     }
 
     /**
-     * Revert an instance to a previous snapshot
+     * Revert the instance to a previous snapshot
      */
-    revert(snapshotKey) {
+    async revert(snapshotKey) {
         this.stop();
         let info = this.core.getSnapshotInfo(this.machineName, this.versionKey, this.instanceKey, snapshotKey);
-        this.start(info.snapshot);
+        await this.start(info.snapshot);
     }
-
-
 
     /**
      * Send an event to the statechart
@@ -142,15 +175,18 @@ export default class Instance {
         child.send({action: "event", data});
 
         debug('Sending event to the interpreter');
-        await new Promise(function(resolve, reject) {
-            child.on('message', function(message) {
-                if(message.action === 'event') {
-                    debug('Received event ACK');
-                        resolve();
-                }
-            })
+        await new Promise((resolve, reject) => {
+           this.once("eventACK", () => {
+               debug('Received event ACK');
+               this.off('eventNACK');
+               resolve();
+           });
+            this.once("eventNACK", (data) => {
+                debug('Received event NACK');
+                this.off('eventACK');
+                reject(data.message);
+            });
         });
-
     }
 }
 

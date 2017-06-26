@@ -50,7 +50,7 @@ let includePathOptions = {
 // Compile source code into a distributable format with Babel
 ['es', 'cjs', 'umd'].forEach((format) => {
     promise = promise.then(() => rollup.rollup({
-        entry: 'src/interpreterProcess.js',
+        entry: 'src/basic_interpreter/process.js',
         external: Object.keys(pkg.dependencies),
         plugins: [babel(Object.assign(pkg.babel, {
             babelrc: false,

@@ -4,7 +4,7 @@
 
 import vm from "vm";
 import request from "request";
-import engineActions from "./engineActions";
+import engineActions from "./actions";
 import debugStart from "debug";
 let debug = debugStart("custom-action");
 

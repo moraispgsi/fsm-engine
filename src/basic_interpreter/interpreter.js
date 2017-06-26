@@ -5,10 +5,12 @@
 //Libraries
 import scxml from "scxml";
 import vm from "vm";
-import customExecuteStart from "./customExecContent";
+import customExecuteStart from "./custom";
 import debugStart from "debug";
+import dateUtils from "date-utils";
 let debug = debugStart("interpreter");
 
+const REFRESH_INTERVAL = 1000;
 
 export default class Interpreter {
 
@@ -18,9 +20,14 @@ export default class Interpreter {
         this.actionDispatcherURL = actionDispatcherURL;
         this.execute = customExecuteStart(actionDispatcherURL);
         this.hasStarted = false;
+        this.hasChanged = false;
         debug(documentString)
     }
 
+    /**
+     * Create the sandbox for the interpreter
+     * @method _createSandbox
+     */
     _createSandbox(){
 
         let execute = this.execute;
@@ -51,6 +58,11 @@ export default class Interpreter {
         return vm.createContext(sandbox);
     }
 
+    /**
+     * Start the interpreter
+     * @method start
+     * @returns {Promise}
+     */
     async start() {
         debug("Starting the interpreter");
 
@@ -80,17 +92,52 @@ export default class Interpreter {
         //Instantiate the interpreter
         this.sc = new scxml.scion.Statechart(fnModel, {snapshot: this.snapshot});
         this.sc.start();
+        process.send({
+            action: "snapshot",
+            snapshot: this.sc.getSnapshot()
+        });
+        //Mark has changed
+        this.sc.on("onTransition", () => {
+            this.hasChanged = true;
+        });
+
         this.hasStarted = true;
+        this.interval = setInterval( () => {
+            if (this.sc === null) {
+                clearInterval(this.interval);
+                return;
+            }
+            if (this.sc.isFinal()) {
+                process.send({
+                    action: "finished",
+                });
+                return;
+            }
+            if (!this.sc._isStepping && this.hasChanged) {
+                process.send({
+                    action: "snapshot",
+                    snapshot: this.sc.getSnapshot()
+                });
+                this.hasChanged = false;
+            }
+        }, REFRESH_INTERVAL);
 
     }
 
+    /**
+     * Send an event to the interpreter
+     * @method sendEvent
+     * @param {String} data The data that goes along with the event
+     */
     sendEvent(data){
-
         if(!this.hasStarted) {
             throw new Error("Can't send event, the interpreter hasn't started");
         }
-
         this.sc.gen(data);
+        process.send({
+            action: "snapshot",
+            snapshot: this.sc.getSnapshot()
+        });
     }
 }
 

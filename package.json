@@ -24,13 +24,14 @@
   },
   "dependencies": {
     "babel-runtime": "^6.11.6",
-    "debug": "latest",
+    "co": "latest",
     "date-utils": "^1.2.21",
+    "debug": "latest",
+    "dush": "^3.0.4",
     "fsm-core": "1.0.14",
     "node-schedule": "^1.2.3",
     "request": "^2.81.0",
-    "scxml": "https://github.com/moraispgsi/SCION.git#519593021e0ccd5abef5529db5cfa733f7e88dc8",
-      "co": "latest"
+    "scxml": "https://github.com/moraispgsi/SCION.git#519593021e0ccd5abef5529db5cfa733f7e88dc8"
   },
   "devDependencies": {
     "babel-cli": "^6.16.0",
