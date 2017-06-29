@@ -5,6 +5,8 @@
 import debugStart from "debug";
 let debug = debugStart("instance");
 import dush from "dush";
+let interpreter = "fsm-engine-interpreter";
+let defaultInterpreterPath = require(interpreter).getPath();
 /**
  * The instance class
  */
@@ -27,7 +29,7 @@ export default class Instance {
         this.machineName = machineName;
         this.versionKey = versionKey;
         this.instanceKey = instanceKey;
-        this.interpreterPath = interpreterPath || __dirname + '/interpreterProcess.js';
+        this.interpreterPath = interpreterPath || defaultInterpreterPath;
         this.emitter = dush();
     }
 
@@ -45,11 +47,30 @@ export default class Instance {
             let lastSnapshotKey = snapshotsKeys[snapshotsKeys.length - 1];
             let info = this.core.getSnapshotInfo(this.machineName, this.versionKey, this.instanceKey, lastSnapshotKey);
             if (JSON.stringify(snapshot) === JSON.stringify(info)) {
-                //No change since the latest snapshot
-                return;
+                return; //No change since the latest snapshot
             }
         }
         await this.core.addSnapshot(this.machineName, this.versionKey, this.instanceKey, snapshot);
+    }
+
+    async _requestChild(action, data){
+        //Send messages to initialize and start the interpreter
+        return await new Promise((resolve, reject) => {
+            this.emitter.once("response", (data) => {
+                if (data.error) {
+                    debug("Received error");
+                    reject(data.error);
+                    return;
+                }
+
+                debug(JSON.stringify(data));
+                debug("Actions %s successfully", action);
+                resolve(data);
+            });
+            data = data || {};
+            data.action = action;
+            this.child.send(data);
+        });
     }
 
     /**
@@ -67,41 +88,19 @@ export default class Instance {
         let actionDispatcherURL = null;
 
         child.on("message", (message) => {
-            debug("Message received");
+            debug("Message received", message.action);
             this.emitter.emit(message.action, message);
         });
 
-        //Send messages to initialize and start the interpreter
-        await new Promise((resolve, reject) => {
-            this.emitter.once("initACK", (data) => {
-                debug("Init ACK");
-                this.emitter.off("initNACK");
-                child.send({action: "start"});
-                this.emitter.once("startACK", () => {
-                    debug("start ACK");
-                    this.emitter.off("startNACK");
-                    resolve();
-                });
-                this.emitter.once("startNACK", (data) => {
-                    debug("start NACK");
-                    this.emitter.off("startACK");
-                    reject(data.message)
-                });
-            });
-
-            this.emitter.once("initNACK", (data) => {
-                debug("Init NACK %s", data.message);
-                this.emitter.off("initACK");
-                reject(data.message)
-            });
-
-            child.send({
-                action: "init",
-                documentString: documentString,
-                snapshot: snapshot,
-                actionDispatcherURL: actionDispatcherURL,
-            });
+        debug("Sending initialize signal");
+        await this._requestChild("init", {
+            documentString: documentString,
+            snapshot: snapshot,
+            actionDispatcherURL: actionDispatcherURL,
         });
+
+        debug("Sending start signal");
+        await this._requestChild("start");
 
         this.emitter.once("finished", (data) => {
             child.kill();
@@ -135,11 +134,19 @@ export default class Instance {
         }
     }
 
+    /**
+     * Check if the instance has started
+     * @returns {boolean}
+     */
     hasStarted() {
         let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
         return info.hasStarted;
     }
 
+    /**
+     * Check if the instance has started
+     * @returns {boolean}
+     */
     hasStopped() {
         let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
         return info.hasStopped;
@@ -148,6 +155,16 @@ export default class Instance {
     hasEnded() {
         let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
         return info.hasEnded;
+    }
+
+    async getSnapshot() {
+        //Find out if the instance has already started
+        if (!(this.hasStarted())) {
+            throw new Error("The instance hasn't started yet.");
+        }
+        debug('Sending event to the interpreter');
+        let data = await this._requestChild("getSnapshot");
+        return data.snapshot;
     }
 
     /**
@@ -161,32 +178,23 @@ export default class Instance {
 
     /**
      * Send an event to the statechart
-     * @param eventName The name of the event
-     * @param data The data of the event
+     * @param event The name of the event
+     * @param eventData The data of the event
      */
-    async sendEvent(eventName, data) {
+    async sendEvent(event, eventData) {
         //Find out if the instance has already started
         if (!(this.hasStarted())) {
             throw new Error("The instance hasn't started yet.");
         }
-        data = data || {};
-        data.name = eventName;
-        let child = this.child;
-        child.send({action: "event", data});
+        let requestData = {
+            data: {
+                name: event,
+                data: eventData,
+            }
 
-        debug('Sending event to the interpreter');
-        await new Promise((resolve, reject) => {
-           this.once("eventACK", () => {
-               debug('Received event ACK');
-               this.off('eventNACK');
-               resolve();
-           });
-            this.once("eventNACK", (data) => {
-                debug('Received event NACK');
-                this.off('eventACK');
-                reject(data.message);
-            });
-        });
+        };
+        debug('Sending event signal to the interpreter');
+        await this._requestChild("event", requestData);
     }
 }
 

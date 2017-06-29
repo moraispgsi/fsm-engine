@@ -1,12 +1,13 @@
 let Engine = require("./../dist/index");
-let co = require("co")
+let interpreter = "fsm-engine-interpreter";
+let interpreterPath = require(interpreter).getPath();
+let co = require("co");
 
 co(function*(){
-  let engine = new Engine(void 0, process.cwd() + "/repo");
+  let engine = new Engine(void 0, process.cwd() + "/repo", interpreterPath);
   yield engine.init();
   let scxml = `<scxml xmlns="http://www.w3.org/2005/07/scxml" version="1.0" datamodel="ecmascript"
     xmlns:ddm="https://insticc.org/DDM"
-    xmlns:test="https://insticc.org/test"
     xmlns:engine="https://INSTICC.org/fsm-engine"
     initial="uninitialized">
     <datamodel>
@@ -77,15 +78,17 @@ co(function*(){
   yield engine.addMachine("deadline");
   engine.setVersionSCXML("deadline", "version1", scxml);
   yield engine.sealVersion("deadline", "version1");
-  for(let i=0;i<5;i++) {
+  for(let i=0;i<1;i++) {
       let instance = yield engine.addInstance("deadline", "version1");
       yield instance.start();
       let date = new Date(new Date().getTime() + 1000 * 20);
       yield instance.sendEvent('init', {date: date, deadlineId: 1, now: new Date()});
+      yield instance.getSnapshot();
   }
   // instance.stop();
+
    engine.stop();
-   engine.resume();
+   // engine.resume();
 
 }).catch((err)=>{console.log(err)});
 

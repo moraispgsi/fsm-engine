@@ -47,26 +47,6 @@ let includePathOptions = {
   })));
 });
 
-// Compile source code into a distributable format with Babel
-['es', 'cjs', 'umd'].forEach((format) => {
-    promise = promise.then(() => rollup.rollup({
-        entry: 'src/basic_interpreter/process.js',
-        external: Object.keys(pkg.dependencies),
-        plugins: [babel(Object.assign(pkg.babel, {
-            babelrc: false,
-            exclude: 'node_modules/**',
-            runtimeHelpers: true,
-            presets: pkg.babel.presets.map(x => (x === 'latest' ? ['latest', { es2015: { modules: false } }] : x)),
-        })),
-            includePaths(includePathOptions)],
-    }).then(bundle => bundle.write({
-        dest: `dist/${format === 'cjs' ? 'interpreterProcess' : `interpreterProcess.${format}`}.js`,
-        format,
-        sourceMap: true,
-        moduleName: format === 'umd' ? pkg.name : undefined,
-    })));
-});
-
 // Copy package.json and LICENSE.txt
 promise = promise.then(() => {
   delete pkg.private;

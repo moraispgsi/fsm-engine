@@ -1,7 +1,6 @@
 //Libraries
 import Instance from "./instance";
 import Core from "fsm-core";
-import customExecuteStart from "./basic_interpreter/custom";
 import debugStart from "debug";
 let debug = debugStart("engine");
 
@@ -17,7 +16,6 @@ export default class Engine extends Core {
         this.isRunning = false;
         this.serverConfig = null;
         this.serverGlobals = null;
-        this.execute = customExecuteStart(actionDispatcherHost);
     }
 
     /**
@@ -84,13 +82,14 @@ export default class Engine extends Core {
     resume() {
         debug('Engine resuming');
         for (let key of Object.keys(this.instanceStore)) {
-            let snapshotKeys = this.getSnapshotKeys();
-            if (snapshotKeys.length == 0) {
+            let instance = this.instanceStore[key];
+            let snapshotsKeys = this.getSnapshotsKeys(instance.machineName, instance.versionKey, instance.instanceKey);
+            if (snapshotsKeys.length === 0) {
                 this.instanceStore[key].start();
             } else {
                 let instance = this.instanceStore[key];
-                let snapshotKey = snapshotKeys[snapshotKeys.length - 1];
-                let snapshot = this.getSnapshot(instance.machineName, instance.versionKey, instance.instanceKey, snapshotKey);
+                let snapshotKey = snapshotsKeys[snapshotsKeys.length - 1];
+                let snapshot = this.getSnapshotInfo(instance.machineName, instance.versionKey, instance.instanceKey, snapshotKey);
                 this.instanceStore[key].start(snapshot);
             }
         }
@@ -132,6 +131,7 @@ export default class Engine extends Core {
      * Overrides the addInstance method in order to store the instance in memory
      * @param machineName The machine name
      * @param versionKey The version key
+     * @param interpreterPath The path to the interpreter JavaScript File
      * @returns {Promise.<Instance>} The new instance
      */
     async addInstance(machineName, versionKey, interpreterPath) {
