@@ -14,7 +14,7 @@ require('date-utils')
 
 co(function*(){
     console.log(__dirname + "/repo");
-    let engine = yield init(null, process.cwd() + "/repo");
+    let engine = yield init(void 0, void 0, process.cwd() + "/repo");
 
     // let version;
     let scxml = `<scxml xmlns="http://www.w3.org/2005/07/scxml" version="1.0" datamodel="ecmascript"

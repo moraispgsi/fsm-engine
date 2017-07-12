@@ -5,8 +5,9 @@
 import debugStart from "debug";
 let debug = debugStart("instance");
 import dush from "dush";
-let interpreter = "fsm-engine-interpreter";
-let defaultInterpreterPath = require(interpreter).getPath();
+let defaultInterpreter = "fsm-engine-interpreter";
+let interpreter = require(defaultInterpreter);
+let defaultInterpreterPath = (interpreter).getPath();
 /**
  * The instance class
  */
@@ -18,20 +19,24 @@ class Instance {
      * @param {Core} core The fsm-core
      * @param {String} documentString The SCXML document
      * @param {String} actionDispatcherURL The URL for the action-dispatcher
+     * @param {String} actionDispatcherToken The access token for the action-dispatcher
      * @param {String} machineName The machine name
      * @param {String} versionKey The version key
      * @param {String} instanceKey The instance Key
      * @param {String} interpreterPath The interpreter process JavaScript file path
      */
-    constructor(core, documentString, actionDispatcherURL, machineName, versionKey, instanceKey, interpreterPath) {
+    constructor(queue, core, documentString, actionDispatcherURL, actionDispatcherToken, machineName, versionKey, instanceKey, interpreterPath) {
         this.core = core;
         this.documentString = documentString;
-        this.actionDispatcher = actionDispatcherURL;
+        this.dispatcherURL = actionDispatcherURL;
+        this.dispatcherToken = actionDispatcherToken;
         this.machineName = machineName;
         this.versionKey = versionKey;
         this.instanceKey = instanceKey;
         this.interpreterPath = interpreterPath || defaultInterpreterPath;
         this.emitter = dush();
+        this.lastSnapshot = null;
+        this.queue = queue;
     }
 
     /**
@@ -45,6 +50,7 @@ class Instance {
     async _save(snapshot) {
         //Take a snapshot of the instance
         //Get last snapshot on the database
+        this.lastSnapshot = snapshot;
         let snapshotsKeys = this.core.getSnapshotsKeys(this.machineName, this.versionKey, this.instanceKey);
         if (snapshotsKeys.length > 0) {
             let lastSnapshotKey = snapshotsKeys[snapshotsKeys.length - 1];
@@ -65,7 +71,7 @@ class Instance {
      * @returns {Promise} The result of the action request
      * @private
      */
-    async _requestChild(action, data){
+    async _requestChild(action, data = {}){
         //Send messages to initialize and start the interpreter
         return await new Promise((resolve, reject) => {
             this.emitter.once("response", (data) => {
@@ -78,7 +84,6 @@ class Instance {
                 debug("Actions %s successfully", action);
                 resolve(data);
             });
-            data = data || {};
             data.action = action;
             this.child.send(data);
         });
@@ -91,25 +96,36 @@ class Instance {
      * @param {Object} snapshot An optional snapshot to run the interpreter
      * @returns {Promise.<void>}
      */
-    async start(snapshot) {
+    async start(snapshot = null) {
+        this.lastSnapshot = snapshot;
         let cp = require('child_process');
         let child = cp.fork(this.interpreterPath);
         this.child =  child;
         debug("Forked the interpreter process");
 
         let documentString = this.documentString;
-        let actionDispatcherURL = null;
 
         child.on("message", (message) => {
             debug("Message received", message.action);
             this.emitter.emit(message.action, message);
         });
 
+        child.on("exit", () => {
+            debug("Process was killed");
+            this.emitter.off('snapshot');
+
+            if(!this.hasEnded() && this.hasStopped()) {
+                // Restart the process, it was killed
+                this.start(this.lastSnapshot).then();
+            }
+        });
+
         debug("Sending initialize signal");
         await this._requestChild("init", {
             documentString: documentString,
             snapshot: snapshot,
-            actionDispatcherURL: actionDispatcherURL,
+            dispatcherURL: this.dispatcherURL,
+            dispatcherToken: this.dispatcherToken
         });
 
         debug("Sending start signal");
@@ -124,8 +140,10 @@ class Instance {
             this.core.setInstanceInfo(this.machineName, this.versionKey, this.instanceKey, info);
         });
 
-        this.emitter.once("snapshot", (data) => {
-            this._save(data.snapshot).then();
+        this.emitter.on("snapshot", (data) => {
+            this.queue.push(function(cb) {
+                this._save(data.snapshot).then(cb);
+            });
         });
 
         let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
@@ -134,18 +152,53 @@ class Instance {
     }
 
     /**
+     * Request to save a snapshot
+     * @memberOf Instance
+     * @method save
+     */
+    async save() {
+        let data = await this._requestChild("getSnapshot");
+        await this._save(data.snapshot);
+    }
+
+    /**
      * Forces the interpreter to stop.
      * @memberOf Instance
      * @method stop
+     * @returns {Promise.<void>}
      */
-    stop() {
+    async stop() {
         if(this.hasStarted() && !this.hasEnded()){
+            let data = await this._requestChild("getSnapshot");
+            await this._save(data.snapshot);
             this.child.kill();
             let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
             info.hasStarted = true;
             info.hasStopped = true;
             info.hasEnded = false;
             this.core.setInstanceInfo(this.machineName, this.versionKey, this.instanceKey, info);
+        }
+    }
+
+    /**
+     * Swaps the dispatcher
+     * @param dispatcherURL The new Dispatcher URL
+     * @param dispatcherToken The new Dispatcher Token
+     */
+    async swapDispatcher(dispatcherURL, dispatcherToken) {
+        this.dispatcherURL = dispatcherURL;
+        this.dispatcherToken = dispatcherToken;
+
+        if(this.hasStarted() && ! this.hasEnded() && !this.hasStopped()) {
+            let requestData = {
+                data: {
+                    dispatcherURL: dispatcherURL,
+                    dispatcherToken: dispatcherToken
+                }
+
+            };
+            debug('Sending swapDispatcher signal to the interpreter');
+            await this._requestChild("swapDispatcher", requestData);
         }
     }
 
@@ -206,7 +259,7 @@ class Instance {
      * @returns {Promise.<void>}
      */
     async revert(snapshotKey) {
-        this.stop();
+        await this.stop();
         let info = this.core.getSnapshotInfo(this.machineName, this.versionKey, this.instanceKey, snapshotKey);
         await this.start(info.snapshot);
     }

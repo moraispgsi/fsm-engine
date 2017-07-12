@@ -1,7 +1,9 @@
 //Libraries
 import Instance from "./instance";
 import Core from "fsm-core";
+import Queue from 'queue';
 import debugStart from "debug";
+
 let debug = debugStart("engine");
 
 /**
@@ -9,9 +11,10 @@ let debug = debugStart("engine");
  */
 class Engine extends Core {
 
-    constructor(actionDispatcherHost, repositoryPath, interpreterPath) {
+    constructor(actionDispatcherURL, actionDispatcherToken, repositoryPath, interpreterPath) {
         super(repositoryPath);
-        this.actionDispatcherHost = actionDispatcherHost;
+        this.dispatcherURL = actionDispatcherURL;
+        this.dispatcherToken = actionDispatcherToken;
         this.repositoryPath = repositoryPath;
         this.interpreterPath = interpreterPath;
         this.instanceStore = {};
@@ -19,6 +22,10 @@ class Engine extends Core {
         this.isRunning = false;
         this.serverConfig = null;
         this.serverGlobals = null;
+        this.queue = new Queue();
+        this.queue.autostart = true;
+        this.queue.concurrency = 0;
+        this.queue.start();
     }
 
     /**
@@ -49,41 +56,36 @@ class Engine extends Core {
 
         this.serverConfig = this._loadConfig();
 
-        debug('Attepting to reload instances');
+        debug('Attempting to reload instances');
         for (let machineName of this.getMachinesNames()) {
             for (let versionKey of this.getVersionsKeys(machineName)) {
                 for (let instanceKey of this.getInstancesKeys(machineName, versionKey)) {
                     let versionInfo = this.getVersionInfo(machineName, versionKey);
                     let documentString = this.getVersionSCXML(machineName, versionKey);
-                    let versionActionDispatcherHost = versionInfo.actionDispatcherHost;
                     let info = this.getInstanceInfo(machineName, versionKey, instanceKey);
-                    let shouldReload = info.hasStarted && !info.hasEnded;
-                    let instance = null;
-                    if (shouldReload) {
+                    let shouldRestart = info.hasStarted && !info.hasEnded;
+                    let instance = new Instance(this.queue, this, documentString, this.dispatcherURL, this.dispatcherToken,
+                        machineName, versionKey, instanceKey, this.interpreterPath);
+
+                    //The instance should be restarted
+                    if (shouldRestart) {
                         let snapshotsKeys = this.getSnapshotsKeys(instance.machineName,
                             instance.versionKey, instance.instanceKey);
                         if (snapshotsKeys.length === 0) {
-                            instance = await this.reloadInstance(machineName, versionKey, instanceKey, null);
+                            await instance.start();
                         } else {
-                            let instance = this.instanceStore[key];
                             let snapshotKey = snapshotsKeys[snapshotsKeys.length - 1];
                             let snapshot = this.getSnapshotInfo(instance.machineName, instance.versionKey,
                                 instance.instanceKey, snapshotKey);
-                            instance = await this.reloadInstance(machineName, versionKey, instanceKey, snapshot);
+                            await instance.start(snapshot);
                         }
-
-                        //The snapshot is parsed as JSON or is null if none was found
-                        instance.start();
-
-                    } else {
-                        instance = new Instance(this, documentString, versionActionDispatcherHost,
-                            machineName, versionKey, instanceKey, this.interpreterPath);
                     }
+
                     //Store the instance in the instanceStore
                     this.instanceStore[machineName + versionKey + instanceKey] = instance;
+
                 }
             }
-
         }
 
         debug('Engine is running');
@@ -114,14 +116,27 @@ class Engine extends Core {
     }
 
     /**
+     * Swaps the dispatcher
+     * @param dispatcherURL The new Dispatcher URL
+     * @param dispatcherToken The new Dispatcher Token
+     */
+    async swapDispatcher(dispatcherURL, dispatcherToken) {
+        this.dispatcherURL = dispatcherURL;
+        this.dispatcherToken = dispatcherToken;
+        for(let key of this.instanceStore) {
+            await this.instanceStore[key].swapDispatcher(dispatcherURL, dispatcherToken);
+        }
+    }
+
+    /**
      * Stops the engine's executions
      * @method stop
      * @memberOf Engine
      */
-    stop() {
+    async stop() {
         debug('Engine stopping');
         for (let key of Object.keys(this.instanceStore)) {
-            this.instanceStore[key].stop();
+            await this.instanceStore[key].stop();
         }
         this.isRunning = false;
         debug('Engine has stopped');
@@ -137,14 +152,13 @@ class Engine extends Core {
     _loadConfig() {
         debug('Loading configuration');
         let serverConfig = this.getConfig();
-        debug("Server Config: $s", serverConfig);
+        debug("Server Config: %s", serverConfig);
         //If there isn't a configuration yet
-        if (!serverConfig.simulateTime) {
-            this.setConfig(serverConfig);
-        }
+        // if (!serverConfig.simulateTime) {
+        //     this.setConfig(serverConfig);
+        // }
         return serverConfig;
     }
-
 
     /**
      * Overrides the addInstance method in order to store the instance in memory
@@ -165,7 +179,8 @@ class Engine extends Core {
 
         let documentString = this.getVersionSCXML(machineName, versionKey);
         let instanceKey = await super.addInstance(machineName, versionKey);
-        let instance = new Instance(this, documentString, null, machineName, versionKey, instanceKey,
+        let instance = new Instance(this.queue, this, documentString, this.dispatcherURL, this.dispatcherToken,
+            machineName, versionKey, instanceKey,
             interpreterPath || this.interpreterPath);
         this.instanceStore[machineName + versionKey + instanceKey] = instance;
         return instance;
@@ -178,7 +193,7 @@ class Engine extends Core {
      * @param {String} machineName The name of the machine
      * @param {String} versionKey The version key
      * @param {String} instanceKey The instance key
-     * @param {Object} snapshot The snapshot object
+     * @param {String} snapshot The snapshot
      * @returns {Promise.<Instance>} The reloaded instance
      */
     async reloadInstance(machineName, versionKey, instanceKey, snapshot) {
@@ -190,8 +205,11 @@ class Engine extends Core {
         }
 
         let documentString = this.getVersionSCXML(machineName, versionKey);
-        return new Instance(this, documentString, snapshot, machineName, versionKey, instanceKey,
-            interpreterPath || this.interpreterPath);
+        let instance = new Instance(this.queue, this, documentString, this.dispatcherURL, this.dispatcherToken,
+            machineName, versionKey, instanceKey, this.interpreterPath);
+
+        await instance.start(snapshot);
+        return instance;
     }
 
     /**
@@ -224,6 +242,23 @@ class Engine extends Core {
                 let instance = this.instanceStore[property];
                 if (instance.hasStarted()) {
                     instance.sendEvent(eventName, data);
+                }
+            }
+        }
+    }
+
+
+    /**
+     * Request every instance to save a snapshot of themselves
+     * @method save
+     * @memberOf Engine
+     */
+    async save() {
+        for (let property in this.instanceStore) {
+            if (this.instanceStore.hasOwnProperty(property)) {
+                let instance = this.instanceStore[property];
+                if (instance.hasStarted()) {
+                    await instance.save();
                 }
             }
         }

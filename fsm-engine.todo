@@ -1,12 +1,32 @@
+Primary:
+ ☐ Force save a snapshot    
+ ☐ Include the scheduling in the snapshot(a schedule must be restarted from the snapshot)
+ ☐ Restart process if it gets killed (add a listener for the process) @high
+ Secondary: 
+ ☐ wrap every action of the SCXML to add middleware like loggers and hooks
+ ☐ ping the action-dispatcher every x seconds in order to determine its availability
+ ☐ Create the github readme @medium
+ ☐ swap the actiondispatcher at runtime
+ ☐ Create the github wiki @low
+ ☐ Set an instance to a specific state. Using a snapshot; @low
+ ☐ Start instance with initializing values @low
+ ☐ Log every transition done @low
+ ☐ create a simulation environment
+ ☐ Prover de um serviço que indica quais são os inputs de uma máquina de estados.
+ ☐ create engine with signature(name and email identifier for the commits)
+   Server statistics:
+  ☐ Include server statistics, like server uptime in a graph @low
+  ☐ Include number of State-machines, versions, instances and snapshots. @low
+  ☐ Include number of actions executed @low
+  ☐ Include number of transitions done @low
+
+ Done:
+ ✔ On the instance stop, make the instance try to save a snapshot  @high @done (17-07-12 13:39)
+ ✔ add token parameter for the action dispatcher @done (17-07-12 13:39)
  ✔ Tick events from the server @done (17-05-15 17:20)
- ☐ Set an instance to a specific state. Using a snapshot;
- ☐ Start instance with initializing values
- ☐ Revert an instance to a specific snapshot (find out how to delete a StateChart in Scion-core)
- ☐ Create the github readme
- ☐ Create the github wiki
+ ✔ Revert an instance to a specific snapshot (find out how to delete a StateChart in Scion-core) @done (17-07-08 07:24)
  ✔ External actions should raise a complete event like success or failure @high @done (17-06-16 05:06)
  ✔ Create an action server separated from the normal @done (17-05-28 23:39)
  ✔ On every change, mark the instance to be snapshoted in the next iteration @done (17-05-21 04:22)
  ✔ Stop the engine @done (17-06-19 14:55)
  ✔ kill instances @done (17-06-17 22:57)
- ☐ Log every transition done @low

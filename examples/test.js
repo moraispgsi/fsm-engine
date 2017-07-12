@@ -4,7 +4,7 @@ let interpreterPath = require(interpreter).getPath();
 let co = require("co");
 
 co(function*(){
-  let engine = new Engine(void 0, process.cwd() + "/repo", interpreterPath);
+  let engine = new Engine(null, null, process.cwd() + "/repo", interpreterPath);
   yield engine.init();
   let scxml = `<scxml xmlns="http://www.w3.org/2005/07/scxml" version="1.0" datamodel="ecmascript"
     xmlns:ddm="https://insticc.org/DDM"
@@ -17,7 +17,7 @@ co(function*(){
         <data id="deadlineId"    expr="-1"/>
         <data id="hideDate"      expr="null"/>
     </datamodel>
-        <state id="uninitialized"> 
+        <state id="uninitialized">
             <transition event="init" target="idle">
                 <assign location="date" expr="new Date(new Date().getTime() + 1000 * 5)"/>
                 <assign location="deadlineId" expr="_event.deadlineId"/>
@@ -34,8 +34,8 @@ co(function*(){
            </transition>
            <!-- if an extension event is receive, save the extension date -->
            <transition event="extension">
-               <assign location="extensionDate" expr="new Date(new Date().getTime() + 1000 * 60 * 2)"/> 
-               <assign location="hasExtension" expr="true"/> 
+               <assign location="extensionDate" expr="new Date(new Date().getTime() + 1000 * 60 * 2)"/>
+               <assign location="hasExtension" expr="true"/>
            </transition>
            <!-- if the deadline receives the event cancel it goes to the state canceled -->
            <transition event="cancel" target="canceled">
@@ -78,17 +78,18 @@ co(function*(){
   yield engine.addMachine("deadline");
   engine.setVersionSCXML("deadline", "version1", scxml);
   yield engine.sealVersion("deadline", "version1");
-  for(let i=0;i<5;i++) {
+
+  for(let i=0;i<40;i++) {
       let instance = yield engine.addInstance("deadline", "version1");
-      yield instance.start();
-      let date = new Date(new Date().getTime() + 1000 * 20);
-      yield instance.sendEvent('init', {date: date, deadlineId: 1, now: new Date()});
-      yield instance.getSnapshot();
+      yield instance.start().then(() => {
+          let date = new Date(new Date().getTime() + 1000 * 20);
+          instance.sendEvent('init', {date: date, deadlineId: 1, now: new Date()});
+      });
   }
   // instance.stop();
 
-   engine.stop();
-   // engine.resume();
+   yield engine.stop();
+   engine.resume();
 
 }).catch((err)=>{console.log(err)});
 
