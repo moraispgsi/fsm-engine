@@ -3,7 +3,7 @@
  */
 
 import debugStart from "debug";
-let debug = debugStart("instance");
+
 import dush from "dush";
 let defaultInterpreter = "fsm-engine-interpreter";
 let interpreter = require(defaultInterpreter);
@@ -16,27 +16,39 @@ class Instance {
     /**
      * Constructor for an instance
      * @constructor
-     * @param {Core} core The fsm-core
+     * @param {Core} engine The fsm-engine
      * @param {String} documentString The SCXML document
      * @param {String} actionDispatcherURL The URL for the action-dispatcher
      * @param {String} actionDispatcherToken The access token for the action-dispatcher
-     * @param {String} machineName The machine name
+     * @param {String} machine The machine name
      * @param {String} versionKey The version key
      * @param {String} instanceKey The instance Key
      * @param {String} interpreterPath The interpreter process JavaScript file path
      */
-    constructor(queue, core, documentString, actionDispatcherURL, actionDispatcherToken, machineName, versionKey, instanceKey, interpreterPath) {
-        this.core = core;
+    constructor(queue, engine, documentString, actionDispatcherURL, actionDispatcherToken, machine, versionKey, instanceKey, interpreterPath) {
+        this.engine = engine;
         this.documentString = documentString;
         this.dispatcherURL = actionDispatcherURL;
         this.dispatcherToken = actionDispatcherToken;
-        this.machineName = machineName;
+        this.machine = machine;
         this.versionKey = versionKey;
         this.instanceKey = instanceKey;
         this.interpreterPath = interpreterPath || defaultInterpreterPath;
         this.emitter = dush();
         this.lastSnapshot = null;
         this.queue = queue;
+        let debug = debugStart("instance");
+        let debugLog = debugStart("instance-log");
+        this.debug = function() {
+            let prefix = `${machine}|${versionKey}|${instanceKey}: `;
+            arguments[0] = prefix + arguments[0];
+            debug.apply(null, arguments)
+        };
+        this.debugLog = function() {
+            let prefix = `${machine}|${versionKey}|${instanceKey}: `;
+            arguments[0] = prefix + arguments[0];
+            debugLog.apply(null, arguments)
+        };
     }
 
     /**
@@ -51,15 +63,15 @@ class Instance {
         //Take a snapshot of the instance
         //Get last snapshot on the database
         this.lastSnapshot = snapshot;
-        let snapshotsKeys = this.core.getSnapshotsKeys(this.machineName, this.versionKey, this.instanceKey);
+        let snapshotsKeys = this.engine.getSnapshotsKeys(this.machine, this.versionKey, this.instanceKey);
         if (snapshotsKeys.length > 0) {
             let lastSnapshotKey = snapshotsKeys[snapshotsKeys.length - 1];
-            let info = this.core.getSnapshotInfo(this.machineName, this.versionKey, this.instanceKey, lastSnapshotKey);
+            let info = this.engine.getSnapshotInfo(this.machine, this.versionKey, this.instanceKey, lastSnapshotKey);
             if (JSON.stringify(snapshot) === JSON.stringify(info)) {
                 return; //No change since the latest snapshot
             }
         }
-        await this.core.addSnapshot(this.machineName, this.versionKey, this.instanceKey, snapshot);
+        await this.engine.addSnapshot(this.machine, this.versionKey, this.instanceKey, snapshot);
     }
 
     /**
@@ -76,12 +88,12 @@ class Instance {
         return await new Promise((resolve, reject) => {
             this.emitter.once("response", (data) => {
                 if (data.error) {
-                    debug("Received error");
+                    this.debug("Received error");
                     reject(data.error);
                     return;
                 }
-                debug(JSON.stringify(data));
-                debug("Actions %s successfully", action);
+                this.debug(JSON.stringify(data));
+                this.debug("Actions %s successfully", action);
                 resolve(data);
             });
             data.action = action;
@@ -101,18 +113,18 @@ class Instance {
         let cp = require('child_process');
         let child = cp.fork(this.interpreterPath);
         this.child =  child;
-        debug("Forked the interpreter process");
+        this.debug("Forked the interpreter process");
 
         let documentString = this.documentString;
 
         child.on("message", (message) => {
-            debug("Message received", message.action);
+            this.debug("Message received", message.action);
             this.emitter.emit(message.action, message);
         });
 
         child.on("exit", () => {
-            debug("Process was killed");
-            this.emitter.off('snapshot');
+            this.debug("Process was killed");
+            this.removeListeners();
 
             if(!this.hasEnded() && this.hasStopped()) {
                 // Restart the process, it was killed
@@ -120,7 +132,7 @@ class Instance {
             }
         });
 
-        debug("Sending initialize signal");
+        this.debug("Sending initialize signal");
         await this._requestChild("init", {
             documentString: documentString,
             snapshot: snapshot,
@@ -128,27 +140,108 @@ class Instance {
             dispatcherToken: this.dispatcherToken
         });
 
-        debug("Sending start signal");
-        await this._requestChild("start");
-
         this.emitter.once("finished", (data) => {
             child.kill();
-            let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
+            let info = this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
             info.hasStarted = true;
             info.hasStopped = false;
             info.hasEnded = true;
-            this.core.setInstanceInfo(this.machineName, this.versionKey, this.instanceKey, info);
+            this.engine.setInstanceInfo(this.machine, this.versionKey, this.instanceKey, info);
         });
 
+        this.addListeners();
+
+        this.debug("Sending start signal");
+        await this._requestChild("start");
+
+        let info = this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
+        info.hasStarted = true;
+        this.engine.setInstanceInfo(this.machine, this.versionKey, this.instanceKey, info);
+    }
+
+    addListeners() {
         this.emitter.on("snapshot", (data) => {
-            this.queue.push(function(cb) {
-                this._save(data.snapshot).then(cb);
+            // this.queue.push(function(cb) {
+            //
+            //
+            // });
+
+            this._save(data.snapshot).then(() => {
+                this.child.send({
+                    action: "response" + data.actionId,
+                    message: "successful"
+                });
+            });
+
+        });
+
+        this.emitter.on('log', (data) => {
+
+            if(data.data){
+                this.debug.apply(null, ['LOG: ' + data.message].concat(Object.values(data.data)));
+            } else {
+                this.debugLog('LOG: ' + data.message);
+            }
+
+            this.child.send({
+                action: "response" + data.actionId,
+                message: "successful"
             });
         });
 
-        let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
-        info.hasStarted = true;
-        this.core.setInstanceInfo(this.machineName, this.versionKey, this.instanceKey, info);
+        this.emitter.on('addInstance', (data) => {
+
+            this.debug("Adding instance of machine %s, version %s", data.machine, data.versionKey)
+
+            this.engine.addInstance(data.machine, data.versionKey).then((instance) => {
+                this.child.send({
+                    action: "response" + data.actionId,
+                    message: "successful",
+                    instanceKey: instance.instanceKey
+                });
+            }).catch((err) => {
+                this.child.send({
+                    action: "response" + data.actionId,
+                    error: err
+                });
+            });
+
+        });
+
+        this.emitter.on('startInstance', (data) => {
+
+            try {
+                let instance = this.engine.getInstance(data.machine, data.versionKey, data.instanceKey);
+                instance.start().then(() => {
+                    this.child.send({
+                        action: "response" + data.actionId,
+                        message: "successful",
+                        machine: data.machine,
+                        versionKey: data.versionKey,
+                        instanceKey: data.instanceKey
+                    })
+                }).catch((err) => {
+                    this.child.send({
+                        action: "response" + data.actionId,
+                        error: err
+                    });
+                });
+            } catch(err) {
+                this.child.send({
+                    action: "response" + data.actionId,
+                    error: err
+                });
+                return;
+            }
+        })
+
+    }
+
+    removeListeners() {
+        this.emitter.off('snapshot');
+        this.emitter.off('log');
+        this.emitter.off('addInstance');
+        this.emitter.off('startInstance');
     }
 
     /**
@@ -172,11 +265,11 @@ class Instance {
             let data = await this._requestChild("getSnapshot");
             await this._save(data.snapshot);
             this.child.kill();
-            let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
+            let info = this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
             info.hasStarted = true;
             info.hasStopped = true;
             info.hasEnded = false;
-            this.core.setInstanceInfo(this.machineName, this.versionKey, this.instanceKey, info);
+            this.engine.setInstanceInfo(this.machine, this.versionKey, this.instanceKey, info);
         }
     }
 
@@ -197,7 +290,7 @@ class Instance {
                 }
 
             };
-            debug('Sending swapDispatcher signal to the interpreter');
+            this.debug('Sending swapDispatcher signal to the interpreter');
             await this._requestChild("swapDispatcher", requestData);
         }
     }
@@ -209,7 +302,7 @@ class Instance {
      * @returns {boolean}
      */
     hasStarted() {
-        let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
+        let info = this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
         return info.hasStarted;
     }
 
@@ -220,7 +313,7 @@ class Instance {
      * @returns {boolean}
      */
     hasStopped() {
-        let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
+        let info = this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
         return info.hasStopped;
     }
 
@@ -231,7 +324,7 @@ class Instance {
      * @returns {boolean}
      */
     hasEnded() {
-        let info = this.core.getInstanceInfo(this.machineName, this.versionKey, this.instanceKey);
+        let info = this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
         return info.hasEnded;
     }
 
@@ -246,7 +339,7 @@ class Instance {
         if (!(this.hasStarted())) {
             throw new Error("The instance hasn't started yet.");
         }
-        debug('Sending request to the interpreter');
+        this.debug('Sending request to the interpreter');
         let data = await this._requestChild("getSnapshot");
         return data.snapshot;
     }
@@ -260,7 +353,7 @@ class Instance {
      */
     async revert(snapshotKey) {
         await this.stop();
-        let info = this.core.getSnapshotInfo(this.machineName, this.versionKey, this.instanceKey, snapshotKey);
+        let info = this.engine.getSnapshotInfo(this.machine, this.versionKey, this.instanceKey, snapshotKey);
         await this.start(info.snapshot);
     }
 
@@ -283,7 +376,7 @@ class Instance {
             }
 
         };
-        debug('Sending event signal to the interpreter');
+        this.debug('Sending event signal to the interpreter');
         await this._requestChild("event", requestData);
     }
 }

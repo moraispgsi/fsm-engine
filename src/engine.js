@@ -69,13 +69,13 @@ class Engine extends Core {
 
                     //The instance should be restarted
                     if (shouldRestart) {
-                        let snapshotsKeys = this.getSnapshotsKeys(instance.machineName,
+                        let snapshotsKeys = this.getSnapshotsKeys(instance.machine,
                             instance.versionKey, instance.instanceKey);
                         if (snapshotsKeys.length === 0) {
                             await instance.start();
                         } else {
                             let snapshotKey = snapshotsKeys[snapshotsKeys.length - 1];
-                            let snapshot = this.getSnapshotInfo(instance.machineName, instance.versionKey,
+                            let snapshot = this.getSnapshotInfo(instance.machine, instance.versionKey,
                                 instance.instanceKey, snapshotKey);
                             await instance.start(snapshot);
                         }
@@ -101,13 +101,13 @@ class Engine extends Core {
         debug('Engine resuming');
         for (let key of Object.keys(this.instanceStore)) {
             let instance = this.instanceStore[key];
-            let snapshotsKeys = this.getSnapshotsKeys(instance.machineName, instance.versionKey, instance.instanceKey);
+            let snapshotsKeys = this.getSnapshotsKeys(instance.machine, instance.versionKey, instance.instanceKey);
             if (snapshotsKeys.length === 0) {
                 this.instanceStore[key].start();
             } else {
                 let instance = this.instanceStore[key];
                 let snapshotKey = snapshotsKeys[snapshotsKeys.length - 1];
-                let snapshot = this.getSnapshotInfo(instance.machineName, instance.versionKey, instance.instanceKey, snapshotKey);
+                let snapshot = this.getSnapshotInfo(instance.machine, instance.versionKey, instance.instanceKey, snapshotKey);
                 this.instanceStore[key].start(snapshot);
             }
         }

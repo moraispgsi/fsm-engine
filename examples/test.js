@@ -79,14 +79,13 @@ co(function*(){
   engine.setVersionSCXML("deadline", "version1", scxml);
   yield engine.sealVersion("deadline", "version1");
 
-  for(let i=0;i<40;i++) {
+  for(let i=0;i<10;i++) {
       let instance = yield engine.addInstance("deadline", "version1");
-      yield instance.start().then(() => {
+      instance.start().then(() => {
           let date = new Date(new Date().getTime() + 1000 * 20);
           instance.sendEvent('init', {date: date, deadlineId: 1, now: new Date()});
       });
   }
-  // instance.stop();
 
    yield engine.stop();
    engine.resume();

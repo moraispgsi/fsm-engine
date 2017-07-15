@@ -29,7 +29,7 @@
     "debug": "latest",
     "dush": "^3.0.4",
     "fsm-core": "1.0.27",
-    "fsm-engine-interpreter": "0.0.10",
+    "fsm-engine-interpreter": "0.0.26",
     "node-schedule": "^1.2.3",
     "request": "^2.81.0",
     "scxml": "https://github.com/moraispgsi/SCION.git#519593021e0ccd5abef5529db5cfa733f7e88dc8"
