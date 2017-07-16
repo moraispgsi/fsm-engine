@@ -2,8 +2,9 @@
  * This is the example1
  * Objective: Allow one machine instance to create a new instance of another machine and start it
  * Actors:
- *  machine1: waits 10 seconds before exiting
- *  machine2: creates and starts an instance of the machine1
+ *  machine1: waits N seconds before exiting
+ *  machine2: creates and starts an instance of the machine1, also sends the init event with a 'seconds' property
+ *            corresponding to the seconds the machine1 instance will have to wait before exiting
  * Use "set DEBUG=instance-log" to see the logs
  * Artifacts: A repository will be created in the project folder, remove it after every run
  */
@@ -27,11 +28,11 @@ co(function*(){
     </datamodel>
     <parallel id="initial">
         <state id="main">
-            <onentry>
+            <transition event="init"> 
                 <engine:log message="Machine has initialized." />
-                <engine:log message="Scheduling exit in 10 seconds." />
-                <engine:schedule job="job1" exprDate="new Date().addSeconds(10)" raise="exit" />
-            </onentry>
+                <engine:log message="Scheduling exit in %s seconds." exprData="[_event.seconds]" />
+                <engine:schedule job="job1" exprDate="new Date().addSeconds(_event.seconds)" raise="exit" />
+            </transition>
             <transition event="exit" target="final" />
         </state>
         <state id="clock">
@@ -72,8 +73,13 @@ co(function*(){
             <assign location="instanceKey" expr="_event.instanceKey" />
             <engine:startInstance exprMachine="machine" exprVersionKey="versionKey" exprInstanceKey="instanceKey" raise="instanceStarted" />
         </transition>
-        <transition event="instanceStarted" target="final">
-            <engine:log message="Instance %s was successfully started." exprData="[ _event.instanceKey ]" />
+        <transition event="instanceStarted">
+            <engine:log message="Instance %s was successfully Started." exprData="[ _event.instanceKey ]" />
+            <engine:sendEvent event="init" exprEventData="{ seconds: 15 }"
+                exprMachine="machine" exprVersionKey="versionKey" exprInstanceKey="instanceKey" raise="eventSent" />
+        </transition>
+        <transition event="eventSent" target="final">
+            <engine:log message="Event was sent" />
         </transition>
     </state>
     <final id="final">

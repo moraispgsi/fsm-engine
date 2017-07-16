@@ -137,11 +137,15 @@ class Instance {
             documentString: documentString,
             snapshot: snapshot,
             dispatcherURL: this.dispatcherURL,
-            dispatcherToken: this.dispatcherToken
+            dispatcherToken: this.dispatcherToken,
+            machine: this.machine,
+            versionKey: this.versionKey,
+            instanceKey: this.instanceKey
         });
 
         this.emitter.once("finished", (data) => {
-            child.kill();
+            this.child.kill();
+            this.child = null;
             let info = this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
             info.hasStarted = true;
             info.hasStopped = false;
@@ -167,10 +171,12 @@ class Instance {
             // });
 
             this._save(data.snapshot).then(() => {
-                this.child.send({
-                    action: "response" + data.actionId,
-                    message: "successful"
-                });
+                if(this.child) {
+                    this.child.send({
+                        action: "response" + data.actionId,
+                        message: "successful"
+                    });
+                }
             });
 
         });
@@ -178,41 +184,121 @@ class Instance {
         this.emitter.on('log', (data) => {
 
             if(data.data){
-                this.debug.apply(null, ['LOG: ' + data.message].concat(Object.values(data.data)));
+                this.debugLog.apply(null, ['LOG: ' + data.message].concat(Object.values(data.data)));
             } else {
                 this.debugLog('LOG: ' + data.message);
             }
 
-            this.child.send({
-                action: "response" + data.actionId,
-                message: "successful"
-            });
+            if(this.child) {
+                this.child.send({
+                    action: "response" + data.actionId,
+                    message: "successful"
+                });
+            }
         });
 
         this.emitter.on('addInstance', (data) => {
 
-            this.debug("Adding instance of machine %s, version %s", data.machine, data.versionKey)
+            this.debug("Adding instance of machine %s, version %s", data.machine, data.versionKey);
 
             this.engine.addInstance(data.machine, data.versionKey).then((instance) => {
-                this.child.send({
-                    action: "response" + data.actionId,
-                    message: "successful",
-                    instanceKey: instance.instanceKey
-                });
+                if(this.child) {
+                    this.child.send({
+                        action: "response" + data.actionId,
+                        message: "successful",
+                        instanceKey: instance.instanceKey
+                    });
+                }
             }).catch((err) => {
-                this.child.send({
-                    action: "response" + data.actionId,
-                    error: err
-                });
+                if(this.child) {
+                    this.child.send({
+                        action: "response" + data.actionId,
+                        error: err
+                    });
+                }
             });
 
         });
 
         this.emitter.on('startInstance', (data) => {
 
+            this.debug("Starting instance %s of machine %s, version %s", data.instanceKey, data.machine, data.versionKey);
+
             try {
                 let instance = this.engine.getInstance(data.machine, data.versionKey, data.instanceKey);
                 instance.start().then(() => {
+                    if(this.child) {
+                        this.child.send({
+                            action: "response" + data.actionId,
+                            message: "successful",
+                            machine: data.machine,
+                            versionKey: data.versionKey,
+                            instanceKey: data.instanceKey
+                        })
+                    }
+                }).catch((err) => {
+                    if(this.child) {
+                        this.child.send({
+                            action: "response" + data.actionId,
+                            error: err
+                        });
+                    }
+                });
+            } catch(err) {
+                if(this.child) {
+                    this.child.send({
+                        action: "response" + data.actionId,
+                        error: err
+                    });
+                }
+            }
+        });
+
+        this.emitter.on('stopInstance', (data) => {
+
+            this.debug("Stopping instance %s of machine %s, version %s", data.instanceKey, data.machine, data.versionKey);
+
+            try {
+                let instance = this.engine.getInstance(data.machine, data.versionKey, data.instanceKey);
+                instance.stop().then(() => {
+                    if(this.child) {
+                        this.child.send({
+                            action: "response" + data.actionId,
+                            message: "successful",
+                            machine: data.machine,
+                            versionKey: data.versionKey,
+                            instanceKey: data.instanceKey
+                        })
+                    }
+                }).catch((err) => {
+                    if(this.child) {
+                        this.child.send({
+                            action: "response" + data.actionId,
+                            error: err
+                        });
+                    }
+                });
+            } catch(err) {
+                if(this.child) {
+                    this.child.send({
+                        action: "response" + data.actionId,
+                        error: err
+                    });
+                }
+            }
+
+        });
+
+
+        this.emitter.on('sendEvent', (data) => {
+
+            this.debug("Sending an event to the instance %s of machine %s, version %s", data.instanceKey, data.machine, data.versionKey);
+
+            try {
+                let instance = this.engine.getInstance(data.machine, data.versionKey, data.instanceKey);
+                instance.sendEvent(data.event, data.eventData || {}).then();
+
+                if(this.child) {
                     this.child.send({
                         action: "response" + data.actionId,
                         message: "successful",
@@ -220,20 +306,18 @@ class Instance {
                         versionKey: data.versionKey,
                         instanceKey: data.instanceKey
                     })
-                }).catch((err) => {
+                }
+
+            } catch(err) {
+                if(this.child) {
                     this.child.send({
                         action: "response" + data.actionId,
                         error: err
                     });
-                });
-            } catch(err) {
-                this.child.send({
-                    action: "response" + data.actionId,
-                    error: err
-                });
-                return;
+                }
             }
-        })
+
+        });
 
     }
 
@@ -242,6 +326,8 @@ class Instance {
         this.emitter.off('log');
         this.emitter.off('addInstance');
         this.emitter.off('startInstance');
+        this.emitter.off('stopInstance');
+        this.emitter.off('sendEvent');
     }
 
     /**
@@ -369,13 +455,13 @@ class Instance {
         if (!(this.hasStarted())) {
             throw new Error("The instance hasn't started yet.");
         }
-        let requestData = {
-            data: {
-                name: event,
-                data: eventData,
-            }
 
+        let requestData = {
+            data: eventData
         };
+
+        requestData.data.name = event;
+
         this.debug('Sending event signal to the interpreter');
         await this._requestChild("event", requestData);
     }
