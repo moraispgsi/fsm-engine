@@ -126,7 +126,7 @@ class Instance {
             this.debug("Process was killed");
             this.removeListeners();
 
-            if(!this.hasEnded() && this.hasStopped()) {
+            if(!this.hasEnded() && !this.hasStopped()) {
                 // Restart the process, it was killed
                 this.start(this.lastSnapshot).then();
             }
@@ -289,7 +289,6 @@ class Instance {
 
         });
 
-
         this.emitter.on('sendEvent', (data) => {
 
             this.debug("Sending an event to the instance %s of machine %s, version %s", data.instanceKey, data.machine, data.versionKey);
@@ -350,12 +349,12 @@ class Instance {
         if(this.hasStarted() && !this.hasEnded()){
             let data = await this._requestChild("getSnapshot");
             await this._save(data.snapshot);
-            this.child.kill();
             let info = this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
             info.hasStarted = true;
             info.hasStopped = true;
             info.hasEnded = false;
             this.engine.setInstanceInfo(this.machine, this.versionKey, this.instanceKey, info);
+            this.child.kill();
         }
     }
 

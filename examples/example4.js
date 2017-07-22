@@ -30,14 +30,11 @@ co(function*() {
             <data id="cbMachine" expr="null"/>
             <data id="cbVersionKey" expr="null"/>
             <data id="cbInstanceKey" expr="null"/>
-            
             <data id="req1InstanceKey" expr="null"/>
             <data id="req2InstanceKey" expr="null"/>
-            
             <data id="A" expr="null"/>
             <data id="B" expr="null"/>
             <data id="result" expr="0"/>
-            
         </datamodel>
         <state id="uninitialized">
             <onentry>
@@ -45,7 +42,6 @@ co(function*() {
             </onentry>
             <transition event="init" target="calculating"> 
                 <engine:log message="Initializing with event %s" exprData="[JSON.stringify(_event)]" />
-                
                 <assign location="n" expr=" _event.n " />
                 <if cond="_event.callback">
                     <assign location="cb" expr="true" />
@@ -55,11 +51,9 @@ co(function*() {
                     <assign location="cbInstanceKey" expr="_event.instanceKey" />
                 </if>
                 <engine:log message="Fib(%s)" exprData="[ n ]" />
-                
             </transition>
         </state>
         <state id="calculating">
-        
             <onentry>
                 <if cond="n &lt; 2">
                     <engine:log message="Fib(%s) = %s" exprData="[n,  n]" />
@@ -70,19 +64,16 @@ co(function*() {
                     <engine:addInstance machine="machine" versionKey="version1" raise="req2.created" />  
                 </if>
             </onentry>
-            
             <transition event="req1.created">
                 <assign location="req1InstanceKey" expr="_event.instanceKey" />
                 <engine:startInstance machine="machine" versionKey="version1" 
                                       exprInstanceKey="req1InstanceKey" raise="req1.started" />
             </transition>
-            
             <transition event="req2.created">
                 <assign location="req2InstanceKey" expr="_event.instanceKey" />
                 <engine:startInstance machine="machine" versionKey="version1" 
                                       exprInstanceKey="req2InstanceKey" raise="req2.started" />
             </transition>
-            
             <transition event="req1.started">
                 <engine:log message="Sending request 1." />
                 <engine:sendEvent machine="machine" versionKey="version1" exprInstanceKey="req1InstanceKey" 
@@ -97,7 +88,6 @@ co(function*() {
                                   }"
                         />
             </transition>
-            
             <transition event="req2.started">
                 <engine:log message="Sending request 2." />
                 <engine:sendEvent machine="machine" versionKey="version1" exprInstanceKey="req2InstanceKey" 
@@ -111,7 +101,6 @@ co(function*() {
                                      instanceKey: me.instanceKey
                                   }" />
             </transition>
-            
             <transition event="req1.completed">
                 <engine:log message="Fib(%s): result %s" exprData="[n - 1, JSON.stringify(_event)]" />
                 <assign location="A" expr="_event.result" />
@@ -119,20 +108,17 @@ co(function*() {
                     <send event="ready" />
                 </if>
             </transition>
-            
             <transition event="req2.completed">
                 <assign location="B" expr="_event.result" />
                 <if cond="A !== null &amp;&amp; B !== null">
                     <send event="ready" />
                 </if>
             </transition>
-            
             <transition event="ready">
                 <engine:log message="Fib(%s) = %s" exprData="[n,  A + B ]" />
                 <assign location="result" expr="A + B" />
                 <send event="return" />
             </transition>
-            
             <transition event="return">
                 <if cond="cb">
                     <engine:sendEvent exprEvent="cbRaise" exprEventData="{ result: result }"
@@ -142,9 +128,7 @@ co(function*() {
                     <send event="done" />
                 </if>
             </transition>
-            
             <transition event="done" target="final" />
-           
         </state>
         <final id="final">
             <onentry>
