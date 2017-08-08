@@ -62,6 +62,8 @@ class Instance {
     async _save(snapshot) {
         //Take a snapshot of the instance
         //Get last snapshot on the database
+        // return; //todo delete this
+
         this.lastSnapshot = snapshot;
         let snapshotsKeys = this.engine.getSnapshotsKeys(this.machine, this.versionKey, this.instanceKey);
         if (snapshotsKeys.length > 0) {
@@ -144,13 +146,16 @@ class Instance {
         });
 
         this.emitter.once("finished", (data) => {
-            this.child.kill();
-            this.child = null;
-            let info = this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
-            info.hasStarted = true;
-            info.hasStopped = false;
-            info.hasEnded = true;
-            this.engine.setInstanceInfo(this.machine, this.versionKey, this.instanceKey, info);
+            this.getSnapshot().then((snapshot) => {
+                this.lastSnapshot = snapshot;
+                this.child.kill();
+                this.child = null;
+                let info = this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
+                info.hasStarted = true;
+                info.hasStopped = false;
+                info.hasEnded = true;
+                this.engine.setInstanceInfo(this.machine, this.versionKey, this.instanceKey, info);
+            });
         });
 
         this.addListeners();
@@ -424,6 +429,15 @@ class Instance {
         if (!(this.hasStarted())) {
             throw new Error("The instance hasn't started yet.");
         }
+
+        if (this.hasStopped()) {
+            return this.lastSnapshot;
+        }
+
+        if (this.hasEnded()) {
+            return this.lastSnapshot;
+        }
+
         this.debug('Sending request to the interpreter');
         let data = await this._requestChild("getSnapshot");
         return data.snapshot;

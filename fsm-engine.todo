@@ -1,6 +1,11 @@
 Primary:
  ☐ Include the scheduling in the snapshot(a schedule must be restarted from the snapshot)
+ ☐ <engine:lastSealedVersion machine="machine1" />
+ ☐ <engine:createAndStartMachine machine="machine1" scxml="strSCXML" />
+ ☐ 
+
  Secondary: 
+ ☐ There should be a way to see the scheduling done by the machines, in order to not interfere with its function when stopping the engine. 
  ☐ wrap every action of the SCXML to add middleware like loggers and hooks
  ☐ ping the action-dispatcher every x seconds in order to determine its availability
  ☐ Create the github readme @medium
