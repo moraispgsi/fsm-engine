@@ -8,12 +8,20 @@
  * Artifacts: A repository will be created in the project folder, remove it after every run
  */
 
-let Engine = require("./../dist/index");
+let Core = require("fsm-core");
 let co = require("co");
 
 co(function*(){
-    let engine = new Engine(null, null);
-    yield engine.init();
+    let core = new Core();
+    core.init({
+        host: '213.228.151.36',
+        port: 1245,
+        password: process.env.password
+    }, {
+        host: '213.228.151.36',
+        port: 1245,
+        auth: process.env.password
+    });
 
     // Waits for 10 seconds and exits
     let scxml1 = `
@@ -63,38 +71,49 @@ co(function*(){
     <state id="initial">
         <onentry>
             <engine:log message="Machine has initialized." />
-            <engine:runInstance exprMachine="machine" exprVersionKey="versionKey" raise="instanceCreated" />
-        </onentry>
-        <transition event="instanceCreated" target="final">
-            <engine:log message="Instance %s was successfully created." exprData="[ _event.instanceKey ]" />
             <assign location="instanceKey" expr="_event.instanceKey" />
+            <engine:runInstance exprMachine="machine" exprVersionKey="versionKey" exprInstanceKey="instanceKey" raise="instanceStarted" />
+        </onentry>
+        <transition event="instanceStarted">
+            <engine:log message="Instance %s was successfully created." exprData="[ _event.instanceKey ]" />
+            <engine:log message="Instance %s was successfully Started." exprData="[ _event.instanceKey ]" />
+            <engine:sendEvent event="init" 
+                exprEventData="{ seconds: 8, machine: 'machine2', versionKey: 'version1', instanceKey: 'instance1' }"
+                exprMachine="machine" exprVersionKey="versionKey" exprInstanceKey="instanceKey" raise="eventSent" />
+        </transition>
+        <transition event="eventSent">
+            <engine:log message="Event was sent" />
+        </transition>
+        <transition event="done"  target="final">
+            <engine:log message="Event was received" />
         </transition>
     </state>
     <final id="final">
-            <onentry>
+        <onentry>
             <engine:log message="Machine is exiting." />
         </onentry>
     </final>
     </scxml>`;
 
-    // yield engine.addMachine("machine1");
-    // yield engine.addMachine("machine2");
-    //
-    // yield engine.setVersionSCXML("machine1", "version1", scxml1);
-    // yield engine.setVersionSCXML("machine2", "version1", scxml2);
-    //
-    // yield engine.sealVersion("machine1", "version1");
-    // yield engine.sealVersion("machine2", "version1");
-    //
-    // let info1 = yield engine.getVersionInfo('machine1', 'version1');
-    // let info2 = yield engine.getVersionInfo('machine2', 'version1');
+    yield core.addMachine("machine1");
+    yield core.addMachine("machine2");
+
+    yield core.setVersionSCXML("machine1", "version1", scxml1);
+    yield core.setVersionSCXML("machine2", "version1", scxml2);
+
+    yield core.sealVersion("machine1", "version1");
+    yield core.sealVersion("machine2", "version1");
+
+    let info1 = yield core.getVersionInfo('machine1', 'version1');
+    let info2 = yield core.getVersionInfo('machine2', 'version1');
 
 
     for(let i = 0; i < 50; i ++) {
-        let instanceKey = yield engine.addInstance("machine2", "version1");
-        yield engine.runInstance('machine2', 'version1', instanceKey);
+        let instanceKey = yield core.addInstance("machine2", "version1");
+        yield core.runInstance('machine2', 'version1', instanceKey);
     }
 
+    process.exit();
 
 }).catch((err)=>{console.log(err)});
 

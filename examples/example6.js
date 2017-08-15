@@ -14,7 +14,7 @@ let interpreterPath = require(interpreter).getPath();
 let co = require("co");
 
 co(function*(){
-    let engine = new Engine(null, null, process.cwd() + "/repo", interpreterPath);
+    let engine = new Engine(null, null, interpreterPath);
     yield engine.init();
 
     // Waits for 10 seconds and exits
@@ -83,14 +83,14 @@ co(function*(){
     </final>
     </scxml>`;
 
-    yield engine.addMachine("machine1");
-    yield engine.addMachine("machine2");
+    // yield engine.addMachine("machine1");
+    // yield engine.addMachine("machine2");
 
-    engine.setVersionSCXML("machine1", "version1", scxml1);
-    engine.setVersionSCXML("machine2", "version1", scxml2);
+    // yield engine.setVersionSCXML("machine1", "version1", scxml1);
+    // yield engine.setVersionSCXML("machine2", "version1", scxml2);
 
-    yield engine.sealVersion("machine1", "version1");
-    yield engine.sealVersion("machine2", "version1");
+    // yield engine.sealVersion("machine1", "version1");
+    // yield engine.sealVersion("machine2", "version1");
 
     for(let i = 0; i < 20; i ++) {
         let instance = yield engine.addInstance("machine2", "version1");

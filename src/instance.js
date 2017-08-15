@@ -3,11 +3,14 @@
  */
 
 import debugStart from "debug";
+import Interpreter from "./interpreter";
 
-import dush from "dush";
-let defaultInterpreter = "fsm-engine-interpreter";
-let interpreter = require(defaultInterpreter);
-let defaultInterpreterPath = (interpreter).getPath();
+import scxml from "scxml";
+import vm from "vm";
+import CustomExecutableContent from "./custom";
+import moment from "moment-business-days";
+import dateUtils from "date-utils";
+const REFRESH_INTERVAL = 1000;
 /**
  * The instance class
  */
@@ -18,25 +21,21 @@ class Instance {
      * @constructor
      * @param {Core} engine The fsm-engine
      * @param {String} documentString The SCXML document
-     * @param {String} actionDispatcherURL The URL for the action-dispatcher
-     * @param {String} actionDispatcherToken The access token for the action-dispatcher
      * @param {String} machine The machine name
      * @param {String} versionKey The version key
      * @param {String} instanceKey The instance Key
-     * @param {String} interpreterPath The interpreter process JavaScript file path
      */
-    constructor(queue, engine, documentString, actionDispatcherURL, actionDispatcherToken, machine, versionKey, instanceKey, interpreterPath) {
+    constructor(engine, documentString, machine, versionKey, instanceKey) {
         this.engine = engine;
-        this.documentString = documentString;
-        this.dispatcherURL = actionDispatcherURL;
-        this.dispatcherToken = actionDispatcherToken;
         this.machine = machine;
         this.versionKey = versionKey;
         this.instanceKey = instanceKey;
-        this.interpreterPath = interpreterPath || defaultInterpreterPath;
-        this.emitter = dush();
+        this.documentString = documentString;
+        this.customExecContent = new CustomExecutableContent(this, engine, engine.dispatcherURL, engine.dispatcherToken);
+        this.hasChanged = false;
         this.lastSnapshot = null;
-        this.queue = queue;
+
+        //DEBUG
         let debug = debugStart("instance");
         let debugLog = debugStart("instance-log");
         this.debug = function() {
@@ -60,15 +59,14 @@ class Instance {
      * @private
      */
     async _save(snapshot) {
+
         //Take a snapshot of the instance
         //Get last snapshot on the database
-        // return; //todo delete this
-
         this.lastSnapshot = snapshot;
-        let snapshotsKeys = this.engine.getSnapshotsKeys(this.machine, this.versionKey, this.instanceKey);
+        let snapshotsKeys = await this.engine.getSnapshotsKeys(this.machine, this.versionKey, this.instanceKey);
         if (snapshotsKeys.length > 0) {
             let lastSnapshotKey = snapshotsKeys[snapshotsKeys.length - 1];
-            let info = this.engine.getSnapshotInfo(this.machine, this.versionKey, this.instanceKey, lastSnapshotKey);
+            let info = await this.engine.getSnapshotInfo(this.machine, this.versionKey, this.instanceKey, lastSnapshotKey);
             if (JSON.stringify(snapshot) === JSON.stringify(info)) {
                 return; //No change since the latest snapshot
             }
@@ -76,33 +74,12 @@ class Instance {
         await this.engine.addSnapshot(this.machine, this.versionKey, this.instanceKey, snapshot);
     }
 
-    /**
-     * Request an action to be done on a child process(interpreter instance)
-     * @method _requestChild
-     * @memberOf Instance
-     * @param {String} action The action to be done by the child process
-     * @param {Object} data The data that accompanies the action
-     * @returns {Promise} The result of the action request
-     * @private
-     */
-    async _requestChild(action, data = {}){
-        //Send messages to initialize and start the interpreter
-        return await new Promise((resolve, reject) => {
-            this.emitter.once("response", (data) => {
-                if (data.error) {
-                    this.debug("Received error");
-                    reject(data.error);
-                    return;
-                }
-                this.debug(JSON.stringify(data));
-                this.debug("Actions %s successfully", action);
-                resolve(data);
-            });
-            data.action = action;
-            this.child.send(data);
-        });
-    }
-
+//     this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey).then((info)=> {
+//     info.hasStarted = true;
+//     info.hasStopped = false;
+//     info.hasEnded = true;
+//     this.engine.setInstanceInfo(this.machine, this.versionKey, this.instanceKey, info).then();
+// });
     /**
      * Starts the interpreter process
      * @method start
@@ -110,228 +87,68 @@ class Instance {
      * @param {Object} snapshot An optional snapshot to run the interpreter
      * @returns {Promise.<void>}
      */
-    async start(snapshot = null) {
+    async start(snapshot = null, onFinishHandler) {
         this.lastSnapshot = snapshot;
-        let cp = require('child_process');
-        let child = cp.fork(this.interpreterPath);
-        this.child =  child;
-        this.debug("Forked the interpreter process");
+        this.debug("Starting the interpreter");
 
-        let documentString = this.documentString;
-
-        child.on("message", (message) => {
-            this.debug("Message received", message.action);
-            this.emitter.emit(message.action, message);
-        });
-
-        child.on("exit", () => {
-            this.debug("Process was killed");
-            this.removeListeners();
-
-            if(!this.hasEnded() && !this.hasStopped()) {
-                // Restart the process, it was killed
-                this.start(this.lastSnapshot).then();
-            }
-        });
-
-        this.debug("Sending initialize signal");
-        await this._requestChild("init", {
-            documentString: documentString,
-            snapshot: snapshot,
-            dispatcherURL: this.dispatcherURL,
-            dispatcherToken: this.dispatcherToken,
-            machine: this.machine,
-            versionKey: this.versionKey,
-            instanceKey: this.instanceKey
-        });
-
-        this.emitter.once("finished", (data) => {
-            this.getSnapshot().then((snapshot) => {
-                this.lastSnapshot = snapshot;
-                this.child.kill();
-                this.child = null;
-                let info = this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
-                info.hasStarted = true;
-                info.hasStopped = false;
-                info.hasEnded = true;
-                this.engine.setInstanceInfo(this.machine, this.versionKey, this.instanceKey, info);
+        //Create the SCION model from the SCXML document
+        let model = await new Promise((resolve, reject) => {
+            scxml.documentStringToModel(null, this.documentString, function (err, model) {
+                if (err) {
+                    reject(err);
+                }
+                resolve(model);
             });
-        });
+        }).then();
 
-        this.addListeners();
+        let vmSandbox = this._createSandbox();
 
-        this.debug("Sending start signal");
-        await this._requestChild("start");
-
-        let info = this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
-        info.hasStarted = true;
-        this.engine.setInstanceInfo(this.machine, this.versionKey, this.instanceKey, info);
-    }
-
-    addListeners() {
-        this.emitter.on("snapshot", (data) => {
-            // this.queue.push(function(cb) {
-            //
-            //
-            // });
-
-            this._save(data.snapshot).then(() => {
-                if(this.child) {
-                    this.child.send({
-                        action: "response" + data.actionId,
-                        message: "successful"
-                    });
+        //Create the SCION-CORE fnModel to use in its interpreter
+        let fnModel = await new Promise((resolve, reject) => {
+            model.prepare(function (err, fnModel) {
+                if (err) {
+                    reject(err);
                 }
-            });
+                resolve(fnModel);
+            }, vmSandbox);
+        }).then();
 
+        this.sandbox = vmSandbox;
+        //Instantiate the interpreter
+        this.sc = new scxml.scion.Statechart(fnModel, {snapshot: snapshot});
+        this.sc.start();
+
+        await this.save();
+
+        //Mark has changed
+        this.sc.on("onTransition", () => {
+            this.hasChanged = true;
         });
 
-        this.emitter.on('log', (data) => {
-
-            if(data.data){
-                this.debugLog.apply(null, ['LOG: ' + data.message].concat(Object.values(data.data)));
-            } else {
-                this.debugLog('LOG: ' + data.message);
+        this._hasStarted = true;
+        this.interval = setInterval( () => {
+            if (this.sc === null) {
+                clearInterval(this.interval);
+                return;
             }
-
-            if(this.child) {
-                this.child.send({
-                    action: "response" + data.actionId,
-                    message: "successful"
-                });
+            if (this.sc.isFinal()) {
+                clearInterval(this.interval);
+                this.save().then();
+                if(this.onFinishHandler) {
+                    this.onFinishHandler();
+                }
+                return;
             }
-        });
-
-        this.emitter.on('addInstance', (data) => {
-
-            this.debug("Adding instance of machine %s, version %s", data.machine, data.versionKey);
-
-            this.engine.addInstance(data.machine, data.versionKey).then((instance) => {
-                if(this.child) {
-                    this.child.send({
-                        action: "response" + data.actionId,
-                        message: "successful",
-                        instanceKey: instance.instanceKey
-                    });
-                }
-            }).catch((err) => {
-                if(this.child) {
-                    this.child.send({
-                        action: "response" + data.actionId,
-                        error: err
-                    });
-                }
-            });
-
-        });
-
-        this.emitter.on('startInstance', (data) => {
-
-            this.debug("Starting instance %s of machine %s, version %s", data.instanceKey, data.machine, data.versionKey);
-
-            try {
-                let instance = this.engine.getInstance(data.machine, data.versionKey, data.instanceKey);
-                instance.start().then(() => {
-                    if(this.child) {
-                        this.child.send({
-                            action: "response" + data.actionId,
-                            message: "successful",
-                            machine: data.machine,
-                            versionKey: data.versionKey,
-                            instanceKey: data.instanceKey
-                        })
-                    }
-                }).catch((err) => {
-                    if(this.child) {
-                        this.child.send({
-                            action: "response" + data.actionId,
-                            error: err
-                        });
-                    }
-                });
-            } catch(err) {
-                if(this.child) {
-                    this.child.send({
-                        action: "response" + data.actionId,
-                        error: err
-                    });
-                }
+            if (!this.sc._isStepping && this.hasChanged) {
+                this.save().then();
+                this.hasChanged = false;
             }
-        });
-
-        this.emitter.on('stopInstance', (data) => {
-
-            this.debug("Stopping instance %s of machine %s, version %s", data.instanceKey, data.machine, data.versionKey);
-
-            try {
-                let instance = this.engine.getInstance(data.machine, data.versionKey, data.instanceKey);
-                instance.stop().then(() => {
-                    if(this.child) {
-                        this.child.send({
-                            action: "response" + data.actionId,
-                            message: "successful",
-                            machine: data.machine,
-                            versionKey: data.versionKey,
-                            instanceKey: data.instanceKey
-                        })
-                    }
-                }).catch((err) => {
-                    if(this.child) {
-                        this.child.send({
-                            action: "response" + data.actionId,
-                            error: err
-                        });
-                    }
-                });
-            } catch(err) {
-                if(this.child) {
-                    this.child.send({
-                        action: "response" + data.actionId,
-                        error: err
-                    });
-                }
-            }
-
-        });
-
-        this.emitter.on('sendEvent', (data) => {
-
-            this.debug("Sending an event to the instance %s of machine %s, version %s", data.instanceKey, data.machine, data.versionKey);
-
-            try {
-                let instance = this.engine.getInstance(data.machine, data.versionKey, data.instanceKey);
-                instance.sendEvent(data.event, data.eventData || {}).then();
-
-                if(this.child) {
-                    this.child.send({
-                        action: "response" + data.actionId,
-                        message: "successful",
-                        machine: data.machine,
-                        versionKey: data.versionKey,
-                        instanceKey: data.instanceKey
-                    })
-                }
-
-            } catch(err) {
-                if(this.child) {
-                    this.child.send({
-                        action: "response" + data.actionId,
-                        error: err
-                    });
-                }
-            }
-
-        });
+        }, REFRESH_INTERVAL);
 
     }
 
-    removeListeners() {
-        this.emitter.off('snapshot');
-        this.emitter.off('log');
-        this.emitter.off('addInstance');
-        this.emitter.off('startInstance');
-        this.emitter.off('stopInstance');
-        this.emitter.off('sendEvent');
+    getSnapshot() {
+        return this.sc.getSnapshot();
     }
 
     /**
@@ -340,8 +157,11 @@ class Instance {
      * @method save
      */
     async save() {
-        let data = await this._requestChild("getSnapshot");
-        await this._save(data.snapshot);
+        let snapshot = this.getSnapshot();
+        if(snapshot) {
+            this.debug('Saving data %s', JSON.stringify(snapshot));
+            await this._save(snapshot);
+        }
     }
 
     /**
@@ -352,36 +172,18 @@ class Instance {
      */
     async stop() {
         if(this.hasStarted() && !this.hasEnded()){
-            let data = await this._requestChild("getSnapshot");
-            await this._save(data.snapshot);
-            let info = this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
+            await this._save(this.getSnapshot());
+            let info = await this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
             info.hasStarted = true;
             info.hasStopped = true;
             info.hasEnded = false;
-            this.engine.setInstanceInfo(this.machine, this.versionKey, this.instanceKey, info);
-            this.child.kill();
+            await this.engine.setInstanceInfo(this.machine, this.versionKey, this.instanceKey, info);
         }
     }
 
-    /**
-     * Swaps the dispatcher
-     * @param dispatcherURL The new Dispatcher URL
-     * @param dispatcherToken The new Dispatcher Token
-     */
-    async swapDispatcher(dispatcherURL, dispatcherToken) {
-        this.dispatcherURL = dispatcherURL;
-        this.dispatcherToken = dispatcherToken;
-
-        if(this.hasStarted() && ! this.hasEnded() && !this.hasStopped()) {
-            let requestData = {
-                data: {
-                    dispatcherURL: dispatcherURL,
-                    dispatcherToken: dispatcherToken
-                }
-
-            };
-            this.debug('Sending swapDispatcher signal to the interpreter');
-            await this._requestChild("swapDispatcher", requestData);
+    async pause() {
+        if(this.hasStarted() && !this.hasEnded()){
+            await this._save(this.getSnapshot());
         }
     }
 
@@ -391,8 +193,8 @@ class Instance {
      * @memberOf Instance
      * @returns {boolean}
      */
-    hasStarted() {
-        let info = this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
+    async hasStarted() {
+        let info = await this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
         return info.hasStarted;
     }
 
@@ -402,8 +204,8 @@ class Instance {
      * @memberOf Instance
      * @returns {boolean}
      */
-    hasStopped() {
-        let info = this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
+    async hasStopped() {
+        let info = await this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
         return info.hasStopped;
     }
 
@@ -413,71 +215,73 @@ class Instance {
      * @memberOf Instance
      * @returns {boolean}
      */
-    hasEnded() {
-        let info = this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
+    async hasEnded() {
+        let info = await this.engine.getInstanceInfo(this.machine, this.versionKey, this.instanceKey);
         return info.hasEnded;
-    }
-
-    /**
-     * Get a snapshot of the instance
-     * @method getSnapshot
-     * @memberOf Instance
-     * @returns {Promise.<Object>}
-     */
-    async getSnapshot() {
-        //Find out if the instance has already started
-        if (!(this.hasStarted())) {
-            throw new Error("The instance hasn't started yet.");
-        }
-
-        if (this.hasStopped()) {
-            return this.lastSnapshot;
-        }
-
-        if (this.hasEnded()) {
-            return this.lastSnapshot;
-        }
-
-        this.debug('Sending request to the interpreter');
-        let data = await this._requestChild("getSnapshot");
-        return data.snapshot;
-    }
-
-    /**
-     * Revert the instance to a previous snapshot
-     * @method revert
-     * @memberOf Instance
-     * @param {String} snapshotKey The snapshot key
-     * @returns {Promise.<void>}
-     */
-    async revert(snapshotKey) {
-        await this.stop();
-        let info = this.engine.getSnapshotInfo(this.machine, this.versionKey, this.instanceKey, snapshotKey);
-        await this.start(info.snapshot);
     }
 
     /**
      * Send an event to the statechart
      * @method sendEvent
-     * @memberOf Instance
+     * @memberOf Interpreter
      * @param {String} event The name of the event
      * @param {Object} eventData The data of the event
      */
-    async sendEvent(event, eventData) {
+    sendEvent(event, eventData) {
         //Find out if the instance has already started
-        if (!(this.hasStarted())) {
-            throw new Error("The instance hasn't started yet.");
+        if(!this._hasStarted) {
+            throw new Error("Can't send event, the interpreter hasn't started");
         }
 
-        let requestData = {
-            data: eventData
+        let data = eventData;
+        data.event = event;
+
+        this.sc.gen(data);
+        this.save().then();
+    }
+
+    /**
+     * Create the sandbox for the interpreter
+     * @method _createSandbox
+     * @memberOf Interpreter
+     * @private
+     */
+    _createSandbox(){
+
+        let custom = this.customExecContent;
+        //Define the sandbox for the v8 virtual machine
+        let sandbox = {
+            moment: moment,
+            Date: Date,
+            me: {
+                machine: this.machine,
+                versionKey: this.versionKey,
+                instanceKey: this.instanceKey
+            },
+            //The server global variables and functions
+            // globals: serverGlobal,
+            //The function that will process the custom actions
+            postMessage: function(message) {
+                let type = message.data["$type"];
+                let stripNsPrefixRe = /^(?:{(?:[^}]*)})?(.*)$/;
+                let arr = stripNsPrefixRe.exec(type);
+                let ns;
+                let action;
+                if(arr.length === 2) {
+                    ns = type.substring(1, type.indexOf("}"));
+                    action = arr[1];
+                } else {
+                    ns = "";
+                    action = arr[0];
+                }
+
+                custom.execute(this, ns, action, sandbox, message._event, message.data);
+            }
         };
 
-        requestData.data.name = event;
-
-        this.debug('Sending event signal to the interpreter');
-        await this._requestChild("event", requestData);
+        return vm.createContext(sandbox);
     }
+
 }
 
 export default Instance;
