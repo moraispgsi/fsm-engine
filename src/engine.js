@@ -26,14 +26,14 @@ class Engine extends Core {
      * @memberOf Engine
      * @returns {Promise}
      */
-    async init(redisOptions) {
+    async init(redisOptions, kueOptions) {
 
         if (this.hasStarted) {
             throw new Error("Engine has already stated.");
         }
 
         debug("Starting the engine");
-        super.init(redisOptions);
+        super.init(redisOptions, kueOptions);
 
         this.processRunInstance((job, done) => {
             let engine = this;
@@ -68,6 +68,8 @@ class Engine extends Core {
         }, 10, () => {
             console.log('Finished');
         });
+
+
 
         this.instanceStore = {};
 

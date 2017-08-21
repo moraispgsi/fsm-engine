@@ -14,13 +14,13 @@ let co = require("co");
 co(function*(){
     let core = new Core();
     core.init({
-        host: '213.228.151.36',
-        port: 1245,
-        password: process.env.password
+        host: 'localhost',
+        port: 6379,
+        // password: process.env.password
     }, {
         host: '213.228.151.36',
-        port: 1245,
-        auth: process.env.password
+        port: 6379,
+        // auth: process.env.password
     });
 
     // Waits for 10 seconds and exits
@@ -95,22 +95,21 @@ co(function*(){
     </final>
     </scxml>`;
 
-    yield core.addMachine("machine1");
-    yield core.addMachine("machine2");
+    // yield core.addMachine("machine1");
+    // yield core.addMachine("machine2");
+    //
+    // yield core.setVersionSCXML("machine1", "version1", scxml1);
+    // yield core.setVersionSCXML("machine2", "version1", scxml2);
+    //
+    // yield core.sealVersion("machine1", "version1");
+    // yield core.sealVersion("machine2", "version1");
+    //
+    // let info1 = yield core.getVersionInfo('machine1', 'version1');
+    // let info2 = yield core.getVersionInfo('machine2', 'version1');
 
-    yield core.setVersionSCXML("machine1", "version1", scxml1);
-    yield core.setVersionSCXML("machine2", "version1", scxml2);
-
-    yield core.sealVersion("machine1", "version1");
-    yield core.sealVersion("machine2", "version1");
-
-    let info1 = yield core.getVersionInfo('machine1', 'version1');
-    let info2 = yield core.getVersionInfo('machine2', 'version1');
-
-
-    for(let i = 0; i < 50; i ++) {
+    for(let i = 0; i < 1; i ++) {
         let instanceKey = yield core.addInstance("machine2", "version1");
-        yield core.runInstance('machine2', 'version1', instanceKey);
+        core.runInstance('machine2', 'version1', instanceKey);
     }
 
     process.exit();

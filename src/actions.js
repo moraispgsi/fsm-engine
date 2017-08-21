@@ -4,37 +4,43 @@
 
 let debug = require("debug")("interpreter-actions");
 let vm = require('vm');
-let scheduleLib = require('node-schedule');
 let vsprintf = require('sprintf-js').vsprintf;
 
-let jobs = {};
 /**
  * Schedule an event for a specific date
- * <schedule event="eventToRaise" exprDate="new Date()" job="myJob"/>
+ * <schedule event="eventToRaise" exprDate="new Date()" raise="eventName"/>
  * @param arguments
  * @param sandbox
  */
-function schedule(args, sandbox, eventContext) {
+function schedule(args, sandbox, eventContext, engine, instance) {
     debug("Action schedule");
     if (!args.raise) {
         throw new Error("Missing the raise argument, not executed");
     }
     let event = args.raise;
-    let date = args.date;
-    let jobIdentifier = args.job;
+    let when = args.when;
+    let priority = args.priority || 'normal';
+    let data = args.data || {};
 
-    let job = scheduleLib.scheduleJob(date, function () {
-        debug("Fired '%s' event on scheduled date '%s'", event, date);
-        if (jobIdentifier) {
-            delete jobs[jobIdentifier];
-        }
-        this.send({name: event});
+    let machine = instance.machine,
+        versionKey = instance.versionKey,
+        instanceKey = instance.instanceKey;
 
-    }.bind(this));
+    //create a job instance
+    let job = engine.queue
+            .createJob(`event:${machine}:${versionKey}:${instanceKey}`, {
+                machine,
+                versionKey,
+                instanceKey,
+                event: event,
+                data: data
+            })
+            .attempts(20)
+            .priority(priority);
 
-    if (args.job) {
-        jobs[args.job] = job;
-    }
+    engine.queue.schedule(when, job);
+
+    debug("Fired '%s' event on scheduled date '%s'", event, when);
 }
 
 /**
@@ -44,12 +50,13 @@ function schedule(args, sandbox, eventContext) {
  * @param sandbox
  * @param event
  */
-function unschedule(args, sandbox, eventContext) {
-    debug("Action unschedule");
+function unschedule(args, sandbox, eventContext, engine, instance) {
+    debug("Action unschedule - not implemented yet");
     if (!args.job) {
         throw new Error("Missing the job argument, not executed");
     }
-    jobs[args.job].cancel();
+
+    //todo
 }
 
 function log(args, sandbox, eventContext, engine, instance) {
@@ -121,7 +128,7 @@ function sendEvent(args, sandbox, eventContext, engine) {
 
 export default {
     schedule: schedule,
-    unschedule: unschedule,
+    // unschedule: unschedule,
     log: log,
     runInstance: runInstance,
     stopInstance: stopInstance,

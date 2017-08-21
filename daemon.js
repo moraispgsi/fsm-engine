@@ -11,7 +11,6 @@
 let Engine = require("./dist/index");
 let co = require("co");
 
-
 co(function*(){
     let engine = new Engine(null, null);
     let redisOptions = {
@@ -19,7 +18,20 @@ co(function*(){
         port: 1245,
         password: process.env.REDIS_PASSWORD
     };
-    yield engine.init();
+    let kueOptions = {
+        host: "213.228.151.36",
+        port: 1245,
+        auth: process.env.REDIS_PASSWORD
+    };
+    yield engine.init(redisOptions, kueOptions);
+
+    process.on('uncaughtException' ,function() {
+        engine.shutdown().then(() => {
+           process.exit(0);
+        }).catch(() => {
+            process.exit(1);
+        });
+    });
 
     process.on('SIGINT', function() {
         engine.shutdown().then(() => {
@@ -28,5 +40,13 @@ co(function*(){
             process.exit(1);
         });
     });
+
+    process.once( 'SIGTERM', function ( sig ) {
+        engine.shutdown(5000, function(err) {
+            console.log('Kue shutdown: ', err||'' );
+            process.exit(0);
+        });
+    });
+
 }).catch((err)=>{console.log(err)});
 
